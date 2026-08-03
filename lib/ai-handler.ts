@@ -410,32 +410,89 @@ DIRECTIONS:
             };
           };
 
+          // Helper to convert non-path SVG elements to path d strings
+          const convertSvgElementToPathD = (el: Element): string | null => {
+            const tagName = el.tagName.toLowerCase();
+            if (tagName === 'path') return el.getAttribute('d');
+            if (tagName === 'rect') {
+              const x = parseFloat(el.getAttribute('x') || '0');
+              const y = parseFloat(el.getAttribute('y') || '0');
+              const w = parseFloat(el.getAttribute('width') || '0');
+              const h = parseFloat(el.getAttribute('height') || '0');
+              if (w > 0 && h > 0) return `M ${x} ${y} h ${w} v ${h} h ${-w} Z`;
+            }
+            if (tagName === 'circle') {
+              const cx = parseFloat(el.getAttribute('cx') || '0');
+              const cy = parseFloat(el.getAttribute('cy') || '0');
+              const r = parseFloat(el.getAttribute('r') || '0');
+              if (r > 0) return `M ${cx - r} ${cy} A ${r} ${r} 0 1 0 ${cx + r} ${cy} A ${r} ${r} 0 1 0 ${cx - r} ${cy}`;
+            }
+            if (tagName === 'ellipse') {
+              const cx = parseFloat(el.getAttribute('cx') || '0');
+              const cy = parseFloat(el.getAttribute('cy') || '0');
+              const rx = parseFloat(el.getAttribute('rx') || '0');
+              const ry = parseFloat(el.getAttribute('ry') || '0');
+              if (rx > 0 && ry > 0) return `M ${cx - rx} ${cy} A ${rx} ${ry} 0 1 0 ${cx + rx} ${cy} A ${rx} ${ry} 0 1 0 ${cx - rx} ${cy}`;
+            }
+            if (tagName === 'line') {
+              const x1 = parseFloat(el.getAttribute('x1') || '0');
+              const y1 = parseFloat(el.getAttribute('y1') || '0');
+              const x2 = parseFloat(el.getAttribute('x2') || '0');
+              const y2 = parseFloat(el.getAttribute('y2') || '0');
+              return `M ${x1} ${y1} L ${x2} ${y2}`;
+            }
+            if (tagName === 'polygon' || tagName === 'polyline') {
+              const pointsAttr = el.getAttribute('points');
+              if (pointsAttr) {
+                const pts = pointsAttr.trim().split(/[\s,]+/);
+                if (pts.length >= 4) {
+                  let d = `M ${pts[0]} ${pts[1]}`;
+                  for (let i = 2; i < pts.length - 1; i += 2) {
+                    d += ` L ${pts[i]} ${pts[i+1]}`;
+                  }
+                  if (tagName === 'polygon') d += ' Z';
+                  return d;
+                }
+              }
+            }
+            return null;
+          };
+
           for (const stroke of data.strokes) {
             let points: {x: number, y: number}[] = [];
             let subPaths: {x: number, y: number}[][] = [];
             
+            // Calculate safe visible center screen coordinates (accounting for AI assistant sidebar & controls)
+            const visibleCenterX = Math.max(250, Math.round((canvas.width - 380) / 2));
+            const visibleCenterY = Math.max(200, Math.round((canvas.height - 80) / 2 + 20));
+
             // Generate points based on shape primitive
-            if (stroke.shapeType === 'circle' && stroke.cx != null && stroke.cy != null && stroke.r != null) {
+            if (stroke.shapeType === 'circle') {
+              const cx = stroke.cx != null && !isNaN(Number(stroke.cx)) && Number(stroke.cx) > 50 && Number(stroke.cx) < canvas.width - 380 ? Number(stroke.cx) : visibleCenterX;
+              const cy = stroke.cy != null && !isNaN(Number(stroke.cy)) && Number(stroke.cy) > 50 && Number(stroke.cy) < canvas.height - 80 ? Number(stroke.cy) : visibleCenterY;
+              const r = stroke.r != null && !isNaN(Number(stroke.r)) && Number(stroke.r) > 0 ? Number(stroke.r) : 100;
               const steps = 36;
               for (let i = 0; i <= steps; i++) {
                 const angle = (i / steps) * Math.PI * 2;
-                // Add a tiny bit of jitter so it looks hand-drawn, unless filled
                 const jitter = stroke.fill ? 0 : (Math.random() - 0.5) * 2;
                 points.push({
-                  x: stroke.cx + Math.cos(angle) * (stroke.r + jitter),
-                  y: stroke.cy + Math.sin(angle) * (stroke.r + jitter)
+                  x: cx + Math.cos(angle) * (r + jitter),
+                  y: cy + Math.sin(angle) * (r + jitter)
                 });
               }
               subPaths.push(points);
-            } else if (stroke.shapeType === 'rectangle' && stroke.x != null && stroke.y != null && stroke.width != null && stroke.height != null) {
+            } else if (stroke.shapeType === 'rectangle') {
+              const w = stroke.width != null && !isNaN(Number(stroke.width)) && Number(stroke.width) > 0 ? Number(stroke.width) : 320;
+              const h = stroke.height != null && !isNaN(Number(stroke.height)) && Number(stroke.height) > 0 ? Number(stroke.height) : 220;
+              const x = stroke.x != null && !isNaN(Number(stroke.x)) && Number(stroke.x) > 20 && Number(stroke.x) < canvas.width - 380 ? Number(stroke.x) : Math.round(visibleCenterX - w / 2);
+              const y = stroke.y != null && !isNaN(Number(stroke.y)) && Number(stroke.y) > 20 && Number(stroke.y) < canvas.height - 80 ? Number(stroke.y) : Math.round(visibleCenterY - h / 2);
               points = [
-                {x: stroke.x, y: stroke.y},
-                {x: stroke.x + stroke.width, y: stroke.y},
-                {x: stroke.x + stroke.width, y: stroke.y + stroke.height},
-                {x: stroke.x, y: stroke.y + stroke.height},
-                {x: stroke.x, y: stroke.y}
+                {x, y},
+                {x: x + w, y},
+                {x: x + w, y: y + h},
+                {x, y: y + h},
+                {x, y}
               ];
-              // Subdivide rectangle lines to make drawing animation smooth
               const subdivided = [];
               for (let i = 0; i < points.length - 1; i++) {
                 const p1 = points[i];
@@ -451,9 +508,13 @@ DIRECTIONS:
                 }
               }
               subPaths.push(subdivided);
-            } else if (stroke.shapeType === 'line' && stroke.x1 != null && stroke.y1 != null && stroke.x2 != null && stroke.y2 != null) {
-              const p1 = {x: stroke.x1, y: stroke.y1};
-              const p2 = {x: stroke.x2, y: stroke.y2};
+            } else if (stroke.shapeType === 'line') {
+              const x1 = stroke.x1 != null && !isNaN(Number(stroke.x1)) ? Number(stroke.x1) : visibleCenterX - 150;
+              const y1 = stroke.y1 != null && !isNaN(Number(stroke.y1)) ? Number(stroke.y1) : visibleCenterY;
+              const x2 = stroke.x2 != null && !isNaN(Number(stroke.x2)) ? Number(stroke.x2) : visibleCenterX + 150;
+              const y2 = stroke.y2 != null && !isNaN(Number(stroke.y2)) ? Number(stroke.y2) : visibleCenterY;
+              const p1 = {x: x1, y: y1};
+              const p2 = {x: x2, y: y2};
               const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
               const steps = Math.max(2, Math.floor(dist / 10));
               for (let j = 0; j <= steps; j++) {
@@ -465,107 +526,161 @@ DIRECTIONS:
               }
               subPaths.push(points);
             } else if (stroke.shapeType === 'svg' && stroke.svgPath) {
-              let cleanPath = stroke.svgPath;
-              if (cleanPath.includes('d=')) {
-                const match = stroke.svgPath.match(/d\s*=\s*(['"])(.*?)\1/i);
-                if (match) cleanPath = match[2];
+              const tempDiv = document.createElement('div');
+              tempDiv.style.position = 'absolute';
+              tempDiv.style.left = '-9999px';
+              tempDiv.style.top = '-9999px';
+              tempDiv.style.visibility = 'hidden';
+
+              const svgContainer = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+              svgContainer.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+              svgContainer.setAttribute('width', '2000');
+              svgContainer.setAttribute('height', '2000');
+              tempDiv.appendChild(svgContainer);
+              document.body.appendChild(tempDiv);
+
+              const rawSvg = stroke.svgPath.trim();
+              if (rawSvg.includes('<')) {
+                svgContainer.innerHTML = rawSvg;
+              } else {
+                const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                pathEl.setAttribute('d', rawSvg);
+                svgContainer.appendChild(pathEl);
               }
-              const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-              pathEl.setAttribute('d', cleanPath);
-              
-              const svgEl = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-              svgEl.style.position = 'absolute';
-              svgEl.style.opacity = '0';
-              svgEl.style.pointerEvents = 'none';
-              svgEl.style.width = '100px';
-              svgEl.style.height = '100px';
-              svgEl.appendChild(pathEl);
-              document.body.appendChild(svgEl);
-              
+
+              // Convert all non-path SVG elements to path elements
+              const allSvgElements = Array.from(svgContainer.querySelectorAll('path, rect, circle, ellipse, line, polygon, polyline'));
+              for (const el of allSvgElements) {
+                if (el.tagName.toLowerCase() !== 'path') {
+                  const pathD = convertSvgElementToPathD(el);
+                  if (pathD) {
+                    const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    p.setAttribute('d', pathD);
+                    el.parentNode?.replaceChild(p, el);
+                  }
+                }
+              }
+
               try {
-                const bbox = pathEl.getBBox();
-                const length = pathEl.getTotalLength();
-                
-                if (length > 0) {
-                  // Default to last drawn stroke if AI hallucinates boundaries
-                  // We add a gap (e.g. 20px) to shift it NEXT to the drawing
-                  const gap = 20;
-                  const defaultW = (typeof pMaxX !== 'undefined' && typeof pMinX !== 'undefined') ? (pMaxX - pMinX) || 100 : bbox.width || 100;
-                  const defaultH = (typeof pMaxY !== 'undefined' && typeof pMinY !== 'undefined') ? (pMaxY - pMinY) || 100 : bbox.height || 100;
-                  // Shift target X over to right side plus the width and gap
-                  const defaultX = typeof pMaxX !== 'undefined' ? (pMaxX + gap) : bbox.x;
-                  const defaultY = typeof pMinY !== 'undefined' ? pMinY : bbox.y;
+                let pathElements = Array.from(svgContainer.querySelectorAll('path')) as SVGPathElement[];
 
-                  let targetX = stroke.x != null ? Number(stroke.x) : defaultX;
-                  let targetY = stroke.y != null ? Number(stroke.y) : defaultY;
-                  const targetWidth = stroke.width != null ? Number(stroke.width) : defaultW;
-                  const targetHeight = stroke.height != null ? Number(stroke.height) : defaultH;
+                // Fallback if innerHTML didn't produce path elements directly
+                if (pathElements.length === 0) {
+                  const dMatches = [...rawSvg.matchAll(/d\s*=\s*(['"])(.*?)\1/gi)];
+                  if (dMatches.length > 0) {
+                    for (const m of dMatches) {
+                      const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                      p.setAttribute('d', m[2]);
+                      svgContainer.appendChild(p);
+                    }
+                  } else {
+                    const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    p.setAttribute('d', rawSvg);
+                    svgContainer.appendChild(p);
+                  }
+                  pathElements = Array.from(svgContainer.querySelectorAll('path')) as SVGPathElement[];
+                }
 
-                  // Fallbacks for zero width/height to avoid NaN
-                  const safeBboxWidth = bbox.width > 0.1 ? bbox.width : 1;
-                  const safeBboxHeight = bbox.height > 0.1 ? bbox.height : 1;
-                  const scaleX = targetWidth / safeBboxWidth;
-                  const scaleY = targetHeight / safeBboxHeight;
-                  
-                  const sampleRate = 3;
-                  const steps = Math.max(10, Math.floor(length / sampleRate));
-                  let currentSubPath: {x: number, y: number}[] = [];
-                  let lastSvgPt: DOMPoint | null = null;
-                  
-                  for (let i = 0; i <= steps; i++) {
-                    const p = pathEl.getPointAtLength((i / steps) * length);
-                    
-                    const mappedX = Number(targetX) + (p.x - bbox.x) * scaleX;
-                    const mappedY = Number(targetY) + (p.y - bbox.y) * scaleY;
-                    
-                    const jitterX = stroke.fill ? 0 : (Math.random() - 0.5) * 1.0;
-                    const jitterY = stroke.fill ? 0 : (Math.random() - 0.5) * 1.0;
-                    
-                    const newPt = { x: mappedX + jitterX, y: mappedY + jitterY };
-                    
-                    if (currentSubPath.length > 0 && lastSvgPt) {
-                      const svgDist = Math.hypot(p.x - lastSvgPt.x, p.y - lastSvgPt.y);
-                      const stepLen = length / steps;
-                      // Maximum straight-line distance cannot exceed path length. If it does by a margin, it's an M jump!
-                      if (svgDist > stepLen * 1.5 + 1) {
+                if (pathElements.length > 0) {
+                  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                  const pathData: { el: SVGPathElement; len: number }[] = [];
+
+                  for (const pEl of pathElements) {
+                    try {
+                      const len = pEl.getTotalLength();
+                      if (len > 0) {
+                        const b = pEl.getBBox();
+                        minX = Math.min(minX, b.x);
+                        minY = Math.min(minY, b.y);
+                        maxX = Math.max(maxX, b.x + b.width);
+                        maxY = Math.max(maxY, b.y + b.height);
+                        pathData.push({ el: pEl, len });
+                      }
+                    } catch (err) {
+                      // ignore unparseable path
+                    }
+                  }
+
+                  if (pathData.length > 0) {
+                    const overallWidth = (maxX > minX && isFinite(maxX - minX)) ? maxX - minX : 100;
+                    const overallHeight = (maxY > minY && isFinite(maxY - minY)) ? maxY - minY : 100;
+                    const overallX = isFinite(minX) ? minX : 0;
+                    const overallY = isFinite(minY) ? minY : 0;
+
+                    const targetWidth = (stroke.width != null && !isNaN(Number(stroke.width)) && Number(stroke.width) > 0)
+                      ? Number(stroke.width) : Math.max(overallWidth, 220);
+                    const targetHeight = (stroke.height != null && !isNaN(Number(stroke.height)) && Number(stroke.height) > 0)
+                      ? Number(stroke.height) : Math.max(overallHeight, 160);
+
+                    const targetX = (stroke.x != null && !isNaN(Number(stroke.x)) && Number(stroke.x) > 50 && Number(stroke.x) < canvas.width - 380)
+                      ? Number(stroke.x)
+                      : Math.round(visibleCenterX - targetWidth / 2);
+                    const targetY = (stroke.y != null && !isNaN(Number(stroke.y)) && Number(stroke.y) > 50 && Number(stroke.y) < canvas.height - 80)
+                      ? Number(stroke.y)
+                      : Math.round(visibleCenterY - targetHeight / 2);
+
+                    const scaleX = overallWidth > 0.1 ? targetWidth / overallWidth : 1;
+                    const scaleY = overallHeight > 0.1 ? targetHeight / overallHeight : 1;
+
+                    for (const item of pathData) {
+                      const sampleRate = 3;
+                      const steps = Math.max(8, Math.floor(item.len / sampleRate));
+                      let currentSubPath: { x: number; y: number }[] = [];
+                      let lastSvgPt: DOMPoint | null = null;
+
+                      for (let i = 0; i <= steps; i++) {
+                        const p = item.el.getPointAtLength((i / steps) * item.len);
+                        const mappedX = targetX + (p.x - overallX) * scaleX;
+                        const mappedY = targetY + (p.y - overallY) * scaleY;
+
+                        const jitterX = stroke.fill ? 0 : (Math.random() - 0.5) * 1.0;
+                        const jitterY = stroke.fill ? 0 : (Math.random() - 0.5) * 1.0;
+                        const newPt = { x: mappedX + jitterX, y: mappedY + jitterY };
+
+                        if (currentSubPath.length > 0 && lastSvgPt) {
+                          const svgDist = Math.hypot(p.x - lastSvgPt.x, p.y - lastSvgPt.y);
+                          const stepLen = item.len / steps;
+                          if (svgDist > stepLen * 2 + 2) {
+                            subPaths.push(currentSubPath);
+                            currentSubPath = [];
+                          }
+                        }
+                        currentSubPath.push(newPt);
+                        lastSvgPt = p;
+                      }
+                      if (currentSubPath.length > 0) {
                         subPaths.push(currentSubPath);
-                        currentSubPath = [];
                       }
                     }
-                    currentSubPath.push(newPt);
-                    lastSvgPt = p;
-                  }
-                  if (currentSubPath.length > 0) {
-                    subPaths.push(currentSubPath);
                   }
                 }
               } catch (e) {
                 console.error("Error parsing SVG path:", e);
               } finally {
-                if (svgEl.parentNode) document.body.removeChild(svgEl);
-              }
-
-              // Log warning if SVG parsing failed entirely 
-              if (subPaths.length === 0) {
-                console.warn("SVG path empty/failed, dropping invalid shape.", stroke);
-                // Fallback: draw a simple rect based on the provided coordinates so the token isn't totally wasted
-                const fbX = stroke.x != null ? Number(stroke.x) : 100;
-                const fbY = stroke.y != null ? Number(stroke.y) : 100;
-                const fbW = stroke.width != null ? Number(stroke.width) : 100;
-                const fbH = stroke.height != null ? Number(stroke.height) : 100;
-                subPaths.push([
-                  {x: fbX, y: fbY},
-                  {x: fbX + fbW, y: fbY},
-                  {x: fbX + fbW, y: fbY + fbH},
-                  {x: fbX, y: fbY + fbH},
-                  {x: fbX, y: fbY}
-                ]);
+                if (tempDiv.parentNode) {
+                  document.body.removeChild(tempDiv);
+                }
               }
             } else if (stroke.shapeType === 'svg') {
-                // shapeType was svg but no svgPath provided!
-                console.warn("SVG requested but no svgPath provided, dropping invalid shape.", stroke);
+                console.warn("SVG requested but no svgPath provided, fallback to standard box.", stroke);
             } else if (stroke.points && Array.isArray(stroke.points)) {
-              subPaths.push(stroke.points.map((p: any) => ({ x: Number(p.x), y: Number(p.y) })));
+              let pts: { x: number; y: number }[] = stroke.points.map((p: any) => ({ x: Number(p.x), y: Number(p.y) }));
+              subPaths.push(pts);
+            }
+
+            // Fallback safety if no subPaths generated
+            if (subPaths.length === 0) {
+              const fbW = 260;
+              const fbH = 180;
+              const fbX = Math.round(visibleCenterX - fbW / 2);
+              const fbY = Math.round(visibleCenterY - fbH / 2);
+              subPaths.push([
+                { x: fbX, y: fbY },
+                { x: fbX + fbW, y: fbY },
+                { x: fbX + fbW, y: fbY + fbH },
+                { x: fbX, y: fbY + fbH },
+                { x: fbX, y: fbY }
+              ]);
             }
 
             for (let points of subPaths) {
@@ -577,7 +692,19 @@ DIRECTIONS:
               }
               
               const newStrokeId = Math.random().toString(36).substr(2, 9);
-              const color = stroke.color || (theme === 'dark' ? '#ffffff' : '#000000');
+              let color = stroke.color || (theme === 'dark' ? '#ffffff' : '#000000');
+              
+              // Ensure color visibility in current theme
+              if (theme === 'light' && (color.toLowerCase() === '#ffffff' || color.toLowerCase() === '#fff' || color.toLowerCase() === 'white')) {
+                if (stroke.tool !== 'eraser' && stroke.tool !== 'ai-eraser') {
+                  color = '#1e293b'; // Fallback to dark slate in light mode
+                }
+              } else if (theme === 'dark' && (color.toLowerCase() === '#000000' || color.toLowerCase() === '#0f1115' || color.toLowerCase() === 'black')) {
+                if (stroke.tool !== 'eraser' && stroke.tool !== 'ai-eraser') {
+                  color = '#f8fafc'; // Fallback to light in dark mode
+                }
+              }
+
               const size: 'thin' | 'medium' | 'thick' = stroke.size || 'medium';
 
               const startPoint = mapPoint(points[0]);
