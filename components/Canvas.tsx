@@ -1,0 +1,470 @@
+'use client';
+
+import React, { useEffect, useRef, useState } from 'react';
+import { useStore, Point, Stroke } from '@/lib/store';
+
+const ASCII_CHARS = ['#', 'a', 't', 'g', 'o', 'p', 'l', '%', '=', 'i', 'p', 'n', 'm', 'd', 'a', 'o', 'Y', 's', '@', '«', 'I', 'f', '÷', '(', '~', 'c', '1', '8', 'K', '3', 'M'];
+
+export default function Canvas() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const { strokes, currentTool, currentColor, currentSize, addStroke, updateLastStroke, finishStroke, offset, scale, setOffset, setScale, undo, redo, backgroundImage, theme, layers, activeLayerId, asciiChar, isGenerating } = useStore();
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [isPanning, setIsPanning] = useState(false);
+  const [lastPanPoint, setLastPanPoint] = useState<Point | null>(null);
+  const bgImageRef = useRef<HTMLImageElement | null>(null);
+
+  const getLineWidth = (size: string | number) => {
+    if (typeof size === 'number') return size;
+    switch (size) {
+      case 'thin': return 2;
+      case 'medium': return 6;
+      case 'thick': return 12;
+      default: return 6;
+    }
+  };
+
+  const drawGrid = React.useCallback((ctx: CanvasRenderingContext2D, width: number, height: number) => {
+    ctx.fillStyle = '#fef08a'; // tailwind yellow-200 for a light yellow dot
+    const dotSize = 2;
+    const spacing = 40;
+    
+    // Calculate visible grid area based on offset and scale
+    const startX = -offset.x / scale;
+    const startY = -offset.y / scale;
+    const endX = startX + width / scale;
+    const endY = startY + height / scale;
+
+    const offsetX = startX % spacing;
+    const offsetY = startY % spacing;
+
+    for (let x = startX - offsetX; x < endX; x += spacing) {
+      for (let y = startY - offsetY; y < endY; y += spacing) {
+        ctx.beginPath();
+        ctx.arc(x, y, dotSize / 2 / scale, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }, [offset, scale]);
+
+  const drawAsciiPath = React.useCallback((ctx: CanvasRenderingContext2D, stroke: Stroke) => {
+    ctx.fillStyle = stroke.color;
+    ctx.font = `${getLineWidth(stroke.size) * 4}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    if (theme === 'dark') {
+      ctx.shadowBlur = getLineWidth(stroke.size) * 4;
+      ctx.shadowColor = stroke.color;
+    } else {
+      ctx.shadowBlur = 0;
+    }
+    
+    // Only draw a char every N pixels to avoid clutter
+    let lastDrawPoint = stroke.points[0];
+    const minDistance = getLineWidth(stroke.size) * 4;
+
+    stroke.points.forEach((p, i) => {
+      // Use stable hash from coordinates so characters don't flicker on zoom/pan redraw
+      const charIndex = Math.floor(Math.abs(p.x * 12345 + p.y * 67890)) % ASCII_CHARS.length;
+      const character = asciiChar || ASCII_CHARS[charIndex];
+
+      if (i === 0) {
+        ctx.fillText(character, p.x, p.y);
+        return;
+      }
+      
+      const dx = p.x - lastDrawPoint.x;
+      const dy = p.y - lastDrawPoint.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      
+      if (dist >= minDistance) {
+        ctx.fillText(character, p.x, p.y);
+        lastDrawPoint = p;
+      }
+    });
+  }, [theme, asciiChar]);
+
+  const offscreenCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  const redraw = React.useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    if (!offscreenCanvasRef.current) {
+      offscreenCanvasRef.current = document.createElement('canvas');
+    }
+    const offscreenCanvas = offscreenCanvasRef.current;
+    if (offscreenCanvas.width !== canvas.width || offscreenCanvas.height !== canvas.height) {
+      offscreenCanvas.width = canvas.width;
+      offscreenCanvas.height = canvas.height;
+    }
+    const offCtx = offscreenCanvas.getContext('2d');
+    if (!offCtx) return;
+
+    ctx.save();
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    ctx.translate(offset.x, offset.y);
+    ctx.scale(scale, scale);
+
+    if (bgImageRef.current) {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.drawImage(bgImageRef.current, 0, 0);
+    }
+
+    drawGrid(ctx, canvas.width, canvas.height);
+
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    const visibleLayerIds = new Set(layers.filter(l => l.visible).map(l => l.id));
+
+    // Group strokes by layer
+    const strokesByLayer = new Map<string, Stroke[]>();
+    strokes.forEach(stroke => {
+      const layerId = stroke.layerId || 'layer-fg';
+      if (visibleLayerIds.has(layerId)) {
+        if (!strokesByLayer.has(layerId)) {
+          strokesByLayer.set(layerId, []);
+        }
+        strokesByLayer.get(layerId)!.push(stroke);
+      }
+    });
+
+    // Draw layers in order
+    layers.forEach(layer => {
+      if (!layer.visible) return;
+      const layerStrokes = strokesByLayer.get(layer.id) || [];
+      if (layerStrokes.length === 0) return;
+
+      // Clear offscreen for the layer
+      offCtx.clearRect(0, 0, offscreenCanvas.width, offscreenCanvas.height);
+      offCtx.lineCap = 'round';
+      offCtx.lineJoin = 'round';
+
+      // Apply transformations to the offscreen canvas
+      offCtx.save();
+      offCtx.translate(offset.x, offset.y);
+      offCtx.scale(scale, scale);
+
+      layerStrokes.forEach(stroke => {
+        // Reset to source-over for every stroke unless specialized
+        offCtx.globalCompositeOperation = 'source-over';
+        
+        if (stroke.tool === 'eraser' || stroke.tool === 'ai-eraser') {
+          offCtx.globalCompositeOperation = 'destination-out';
+          offCtx.lineWidth = getLineWidth(stroke.size) * 4;
+          offCtx.strokeStyle = 'rgba(0,0,0,1)';
+          offCtx.fillStyle = 'rgba(0,0,0,1)';
+          offCtx.shadowBlur = 0;
+        } else {
+          offCtx.lineWidth = getLineWidth(stroke.size);
+          offCtx.strokeStyle = stroke.color;
+          if (theme === 'dark') {
+            offCtx.shadowBlur = getLineWidth(stroke.size) * 2;
+            offCtx.shadowColor = stroke.color;
+          } else {
+            offCtx.shadowBlur = 0;
+          }
+        }
+
+        if (stroke.tool === 'ascii') {
+          drawAsciiPath(offCtx, stroke);
+        } else if (stroke.tool === 'ai-colorize') {
+          // Drawing behind existing content on this layer
+          offCtx.globalCompositeOperation = 'destination-over';
+          offCtx.lineWidth = getLineWidth(stroke.size) * 3;
+          offCtx.strokeStyle = stroke.color;
+          if (stroke.points.length === 0) return;
+          offCtx.beginPath();
+          offCtx.moveTo(stroke.points[0].x, stroke.points[0].y);
+          if (stroke.points.length === 1) {
+            offCtx.lineTo(stroke.points[0].x, stroke.points[0].y);
+          } else {
+            for (let i = 1; i < stroke.points.length - 1; i++) {
+              const xc = (stroke.points[i].x + stroke.points[i + 1].x) / 2;
+              const yc = (stroke.points[i].y + stroke.points[i + 1].y) / 2;
+              offCtx.quadraticCurveTo(stroke.points[i].x, stroke.points[i].y, xc, yc);
+            }
+            offCtx.lineTo(stroke.points[stroke.points.length - 1].x, stroke.points[stroke.points.length - 1].y);
+          }
+          offCtx.stroke();
+        } else {
+          // Normal pencil etc
+          if (stroke.points.length === 0) return;
+          offCtx.beginPath();
+          offCtx.moveTo(stroke.points[0].x, stroke.points[0].y);
+          if (stroke.points.length === 1) {
+            offCtx.lineTo(stroke.points[0].x, stroke.points[0].y);
+          } else {
+            for (let i = 1; i < stroke.points.length - 1; i++) {
+              const xc = (stroke.points[i].x + stroke.points[i + 1].x) / 2;
+              const yc = (stroke.points[i].y + stroke.points[i + 1].y) / 2;
+              offCtx.quadraticCurveTo(stroke.points[i].x, stroke.points[i].y, xc, yc);
+            }
+            offCtx.lineTo(stroke.points[stroke.points.length - 1].x, stroke.points[stroke.points.length - 1].y);
+          }
+          
+          if (stroke.fill) {
+            offCtx.fillStyle = stroke.color;
+            offCtx.fill();
+            // Also stroke the outline to avoid jaggy edges between adjacent polygons
+            offCtx.stroke(); 
+          } else {
+            offCtx.stroke();
+          }
+        }
+      });
+
+      offCtx.restore();
+
+      // Draw the offscreen canvas onto the main canvas without double-transform
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform to identity
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.drawImage(offscreenCanvas, 0, 0);
+      ctx.restore();
+    });
+    
+    ctx.restore();
+  }, [offset, scale, layers, strokes, theme, drawGrid, drawAsciiPath]);
+
+  useEffect(() => {
+    if (backgroundImage) {
+      const img = new Image();
+      img.onload = () => {
+        bgImageRef.current = img;
+        redraw();
+      };
+      img.src = backgroundImage;
+    } else {
+      bgImageRef.current = null;
+      redraw();
+    }
+  }, [backgroundImage, redraw]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const resize = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      redraw();
+    };
+
+    window.addEventListener('resize', resize);
+    resize();
+
+    return () => window.removeEventListener('resize', resize);
+  }, [redraw]);
+
+  useEffect(() => {
+    redraw();
+  }, [strokes, offset, scale, redraw]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        if (e.shiftKey) {
+          redo();
+        } else {
+          undo();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+        redo();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undo, redo]);
+
+  const getCoordinates = (e: React.MouseEvent | React.TouchEvent | MouseEvent | TouchEvent): Point | null => {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    
+    let clientX, clientY;
+    if ('touches' in e) {
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else {
+      clientX = (e as React.MouseEvent).clientX;
+      clientY = (e as React.MouseEvent).clientY;
+    }
+
+    return {
+      x: (clientX - rect.left - offset.x) / scale,
+      y: (clientY - rect.top - offset.y) / scale
+    };
+  };
+
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    
+    if (e.ctrlKey || e.metaKey) {
+      // Zoom
+      const zoomSensitivity = 0.001;
+      const delta = -e.deltaY * zoomSensitivity;
+      
+      setScale(prevScale => {
+        const newScale = Math.min(Math.max(0.1, prevScale * (1 + delta)), 5);
+        const rect = canvasRef.current?.getBoundingClientRect();
+        if (rect) {
+          const mouseX = e.clientX - rect.left;
+          const mouseY = e.clientY - rect.top;
+          
+          setOffset(prevOffset => ({
+            x: mouseX - (mouseX - prevOffset.x) * (newScale / prevScale),
+            y: mouseY - (mouseY - prevOffset.y) * (newScale / prevScale)
+          }));
+        }
+        return newScale;
+      });
+    } else {
+      // Pan
+      setOffset(prev => ({
+        x: prev.x - e.deltaX,
+        y: prev.y - e.deltaY
+      }));
+    }
+  };
+
+  const startInteraction = (e: React.MouseEvent | React.TouchEvent) => {
+    if (useStore.getState().isGenerating) {
+      useStore.getState().setTopMessage("Please wait for AI to finish drawing.");
+      return;
+    }
+    
+    // Middle click, altKey, or Hand tool for panning
+    if (('button' in e && e.button === 1) || e.altKey || currentTool === 'hand') {
+      setIsPanning(true);
+      if ('touches' in e) {
+        setLastPanPoint({ x: e.touches[0].clientX, y: e.touches[0].clientY });
+      } else {
+        setLastPanPoint({ x: e.clientX, y: e.clientY });
+      }
+      return;
+    }
+
+    const activeLayer = layers.find(l => l.id === activeLayerId);
+    if (activeLayer?.locked) {
+      useStore.getState().setTopMessage("Layer is locked. Cannot draw.");
+      return;
+    }
+
+    const point = getCoordinates(e);
+    if (!point) return;
+
+    setIsDrawing(true);
+    addStroke({
+      id: Date.now().toString(),
+      tool: currentTool,
+      color: currentColor,
+      size: currentSize,
+      points: [point],
+      layerId: activeLayerId
+    });
+  };
+
+  const interact = (e: React.MouseEvent | React.TouchEvent) => {
+    if (isPanning && lastPanPoint) {
+      let clientX, clientY;
+      if ('touches' in e) {
+        clientX = e.touches[0].clientX;
+        clientY = e.touches[0].clientY;
+      } else {
+        clientX = (e as React.MouseEvent).clientX;
+        clientY = (e as React.MouseEvent).clientY;
+      }
+
+      setOffset(prev => ({
+        x: prev.x + (clientX - lastPanPoint.x),
+        y: prev.y + (clientY - lastPanPoint.y)
+      }));
+      setLastPanPoint({ x: clientX, y: clientY });
+      return;
+    }
+
+    if (!isDrawing) return;
+    if (useStore.getState().isGenerating) {
+      setIsDrawing(false);
+      return;
+    }
+    const point = getCoordinates(e);
+    if (!point) return;
+    updateLastStroke(point);
+  };
+
+  const stopInteraction = () => {
+    if (isDrawing && !useStore.getState().isGenerating) {
+      finishStroke();
+    }
+    setIsDrawing(false);
+    setIsPanning(false);
+    setLastPanPoint(null);
+  };
+
+  // Custom cursor based on tool
+  const getCursor = () => {
+    if (isPanning) return 'cursor-grab active:cursor-grabbing';
+    
+    // Solid colors for the dynamic outline cursor
+    const cursorColor = theme === 'dark' ? '#ffffff' : '#000000';
+    const cursorFill = theme === 'dark' ? '#1e293b' : '#f8fafc';
+    const cursorStroke = theme === 'dark' ? '#000000' : '#ffffff';
+    
+    // Helper to generate safe URL encoded SVGs for cursors to guarantee chrome/firefox render them correctly
+    const createSvgCursor = (svgContent: string, x: number, y: number) => {
+      const fullSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none">${svgContent}</svg>`;
+      return `url('data:image/svg+xml;utf8,${encodeURIComponent(fullSvg)}') ${x} ${y}, crosshair`;
+    };
+
+    if (currentTool === 'pencil') {
+      return createSvgCursor(`<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" fill="${cursorFill}" stroke="${cursorColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />`, 2, 22);
+    } else if (currentTool === 'eraser') {
+      return createSvgCursor(`<path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21" fill="${cursorFill}" stroke="${cursorColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M22 21H7" stroke="${cursorColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="m5 11 9 9" stroke="${cursorColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`, 2, 22);
+    } else if (currentTool === 'ai-colorize') {
+      return createSvgCursor(`<path d="m19 11-8-8-8.6 8.6a2 2 0 0 0 0 2.8l5.2 5.2c.8.8 2 .8 2.8 0L19 11Z" fill="${cursorFill}" stroke="${cursorColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="m5 2 5 5" stroke="${cursorColor}" stroke-width="2"/><path d="M2 13h15" stroke="${cursorColor}" stroke-width="2"/><path d="M22 20a2 2 0 1 1-4 0c0-1.6 1.7-2.4 2-4 .3 1.6 2 2.4 2 4Z" stroke="${cursorColor}" stroke-width="2"/>`, 2, 22);
+    } else if (currentTool === 'ai-eraser') {
+      return createSvgCursor(`<path d="m9.937 15.5 2.561-2.561a1.53 1.53 0 0 1 2.161 0l5.682 5.682a1.53 1.53 0 0 1 0 2.162l-1.14 1.14a1.53 1.53 0 0 1-2.162 0L11.357 16.24" fill="${cursorFill}" stroke="${cursorColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="m13 10.736-2.561-2.561a1.53 1.53 0 0 0-2.161 0l-5.682 5.682a1.53 1.53 0 0 0 0 2.162l1.14 1.14a1.53 1.53 0 0 0 2.162 0L11.58 11.47" stroke="${cursorColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="m10.5 14.5 3-3" stroke="${cursorColor}" stroke-width="2"/><path d="M6 10V8a2 2 0 0 1 2-2h2" stroke="${cursorColor}" stroke-width="2"/><path d="M14 4h2a2 2 0 0 1 2 2v2" stroke="${cursorColor}" stroke-width="2"/><path d="m14 14 3 3" stroke="${cursorColor}" stroke-width="2"/>`, 2, 22);
+    }
+    
+    const pointerSvg = `<path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z" fill="${cursorColor}" stroke="${cursorStroke}" stroke-width="1.5" stroke-linejoin="round"/>`;
+    return createSvgCursor(pointerSvg, 0, 0);
+  };
+
+  return (
+    <div className="fixed inset-0 w-full h-full pointer-events-none z-0">
+      <canvas
+        ref={canvasRef}
+        className="absolute inset-0 w-full h-full touch-none pointer-events-auto"
+        onMouseDown={startInteraction}
+        onMouseMove={interact}
+        onMouseUp={stopInteraction}
+        onMouseLeave={stopInteraction}
+        onTouchStart={startInteraction}
+        onTouchMove={interact}
+        onTouchEnd={stopInteraction}
+        onTouchCancel={stopInteraction}
+        onWheel={handleWheel}
+        style={{ backgroundColor: 'transparent', cursor: getCursor() }}
+      />
+      
+      {/* Premium Glassmorphic AI Painting/Blur overlay with custom micro-animations */}
+      {isGenerating && (
+        <div 
+          className="absolute inset-x-0 inset-y-0 pointer-events-none select-none z-10 animate-fade-in"
+        >
+          {/* Top ambient blurred border bar */}
+          <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-indigo-500/15 via-indigo-500/5 to-transparent backdrop-blur-md border-b border-indigo-500/10 pointer-events-none" />
+          
+          {/* Bottom ambient blurred border bar */}
+          <div className="absolute bottom-0 left-0 w-full h-32 bg-gradient-to-t from-indigo-500/15 via-indigo-500/5 to-transparent backdrop-blur-md border-t border-indigo-500/10 pointer-events-none" />
+        </div>
+      )}
+    </div>
+  );
+}

@@ -1,0 +1,6 @@
+{
+  "name": "SynapseSketch",
+  "description": "An AI-powered collaborative drawing canvas where humans and AI can draw together, featuring real-time socket connections and AI generation tools.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
