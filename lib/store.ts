@@ -135,7 +135,7 @@ export const useStore = create<AppState>((set, get) => ({
     apiProvider: 'gemini',
     geminiApiKey: '',
     claudeApiKey: '',
-    geminiModel: 'gemini-3.6-flash',
+    geminiModel: 'gemini-2.5-flash',
     claudeModel: 'claude-3-5-sonnet-latest',
     skipClearConfirmation: false,
   },

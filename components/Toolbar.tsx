@@ -25,12 +25,11 @@ export default function Toolbar() {
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
 
   const geminiModels = [
-    { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash', version: 'v3.6', desc: 'Flagship — balanced speed & intelligence for agentic & multimodal tasks' },
-    { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash', version: 'v3.5', desc: 'Frontier performance — fast, high intelligence agentic multimodal' },
-    { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro', version: 'v3.1', desc: 'Advanced reasoning — deep spatial composition' },
     { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', version: 'v2.5', desc: 'Recommended — ultra-fast & intelligent visual parsing' },
     { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', version: 'v2.5', desc: 'Complex — deep multi-object reasoning & analysis' },
-    { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', version: 'v1.5', desc: 'Agile — lightweight canvas generations' }
+    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', version: 'v2.0', desc: 'Next-gen fast multimodal generation' },
+    { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', version: 'v1.5', desc: 'Lightweight & agile canvas generation' },
+    { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', version: 'v1.5', desc: 'High capacity reasoning' }
   ];
 
   const claudeModels = [

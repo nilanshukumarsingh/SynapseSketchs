@@ -180,26 +180,13 @@ CRITICAL BOUNDED WORKSPACE LIMITS:
 
   // Backup fallback if we have older strokes but no new contiguous human strokes post-AI
   if (!hasLatestHumanBbox) {
-    const visibleStrokes = strokes.filter(s => !s.points.every(p => p.x === -9999 && p.y === -9999));
-    const lastStroke = visibleStrokes[visibleStrokes.length - 1];
-    if (lastStroke && lastStroke.points.length > 0) {
-      const minX = Math.min(...lastStroke.points.map(p => p.x));
-      const maxX = Math.max(...lastStroke.points.map(p => p.x));
-      const minY = Math.min(...lastStroke.points.map(p => p.y));
-      const maxY = Math.max(...lastStroke.points.map(p => p.y));
-      const s = scale || 1;
-      pMinX = minX * s + offset.x;
-      pMaxX = maxX * s + offset.x;
-      pMinY = minY * s + offset.y;
-      pMaxY = maxY * s + offset.y;
-      recentStrokeInfo = `\nCRITICAL FOCUS: The user's most recent stroke region is roughly located between X:${Math.round(pMinX)}-${Math.round(pMaxX)} and Y:${Math.round(pMinY)}-${Math.round(pMaxY)}. Focus on this region to align your shapes beautifully, but ensure previous artwork is respected.`;
-    }
+    recentStrokeInfo = `\nCRITICAL LAYOUT MANDATE: The user HAS NOT drawn any new human hand strokes on the canvas for this command. The user is asking to add a new object via text prompt. Do NOT erase or draw over existing drawings (such as a previously drawn car)! Place the new object in open, unused canvas space (e.g. adjacent to existing drawings).`;
   }
   
   // Calculate broadly occupied areas to help AI find empty space
   let allOccupiedInfo = "";
+  let globalMinX = Infinity, globalMaxX = -Infinity, globalMinY = Infinity, globalMaxY = -Infinity;
   if (strokes.length > 0) {
-    let globalMinX = Infinity, globalMaxX = -Infinity, globalMinY = Infinity, globalMaxY = -Infinity;
     strokes.forEach(s => {
       s.points.forEach(p => {
         if (p.x !== -9999 && p.y !== -9999) {
@@ -216,7 +203,8 @@ CRITICAL BOUNDED WORKSPACE LIMITS:
       const gMaxX = Math.round(globalMaxX * s + offset.x);
       const gMinY = Math.round(globalMinY * s + offset.y);
       const gMaxY = Math.round(globalMaxY * s + offset.y);
-      allOccupiedInfo = `\nOCCUPIED SPACE: The canvas currently has drawings between roughly X:${gMinX} to ${gMaxX} and Y:${gMinY} to ${gMaxY}. If drawing a NEW separate object, you MUST place it completely OUTSIDE this occupied area (e.g., place it at X: ${gMaxX + 150} or Y: ${gMaxY + 150}).`;
+      allOccupiedInfo = `\nOCCUPIED SPACE: The canvas currently has drawings occupying X: ${gMinX} to ${gMaxX} and Y: ${gMinY} to ${gMaxY}.
+- When drawing a NEW object (and NOT replacing an existing sketch inside a bounding box), you MUST specify explicit "x" and "y" coordinates for your shapes to place them in OPEN SPACE completely OUTSIDE this occupied area (e.g., set "x": ${Math.min(canvas.width - 250, gMaxX + 60)}, "y": ${gMinY}).`;
     }
   }
 
@@ -273,7 +261,9 @@ GOAL: Cleanly and beautifully draw, correct, or enhance the sketches on the canv
 DIRECTIONS:
 1. RECOGNITION & PLAN: Detail your observations in "thoughts". What did the user draw? What do they want? State your precise strategy, locating the bounding boxes.
 2. COMPOSITIONAL INTELLIGENCE: For complex structured objects (bicycles, cars, buildings), you SHOULD COMPUTE the object out of multiple layered geometric primitives! For example, a bike is easily drawn as two mathematically perfect circles for wheels, followed by several thick lines connecting the axles to form the frame, and paths for the handlebar and seat. This uses spatial awareness and produces much more accurate objects than trying to hallucinate a single intricate SVG path.
-3. IN-PLACE COMPLETION AND BEAUTIFICATION: When the user asks to complete, beautify, or "Auto-Draw" their sketches, scale and align your shapes EXACTLY over the respective bounding box coordinates of the sketched items. Do not misinterpret abstract outline symbols (like a fluffy outline with a trunk = tree; or a two-lobed symmetrical shape = heart). Translate them accurately to the provided standard shapes instead of hallucinating human anatomical structures. To prevent messy overlapping lines (answering 'why it draw on same drawing which i made???'), you MUST ALWAYS prepend an eraser stroke ('tool: "eraser"', 'shapeType: "rectangle"', with matching coords) at the start of your strokes list FIRST to cleanly wipe the user's messy scribble before tracing your pristine new SVG shape in its place! This guarantees a clean, gorgeous, and professional final artwork. Ensure your eraser is perfectly scaled to the bounds of the sketch being replaced so other drawings are never affected!
+3. IN-PLACE COMPLETION vs NEW OBJECTS:
+   - If a CRITICAL BOUNDED WORKSPACE LIMITS box is provided (the user drew a messy hand sketch), scale and align your shapes inside that box and prepend an eraser stroke ('tool': "eraser", 'shapeType': "rectangle") FIRST to wipe their messy lines.
+   - If NO bounded workspace limits are provided (user typed a text command like "draw a bike to go with your car"), DO NOT use an eraser stroke! Do NOT overwrite or erase existing artwork! Instead, specify explicit "x" and "y" coordinates to place the new object in open space next to existing drawings!
 4. COLORS & SIZES: Use the ACTIVE SELECTED COLOR (${currentColor}) and ACTIVE SELECTED SIZE (${currentSize}) by default for new strokes unless the user explicitly asks for a different color or brush size.
 5. MAGIC ERASER: If tasked with erasing, you MUST use the tool="eraser" property. Do not attempt to draw background-colored shapes.
 6. PRIMITIVES & FILL:
@@ -282,8 +272,26 @@ DIRECTIONS:
    - SVG paths (hearts, clouds, dogs, cats, faces, logos, humans, home, tree, bike, car): use shapeType="svg", provide ONLY the raw SVG "d" attribute path string in "svgPath" (NO HTML/XML TAGS). YOU MUST provide "x", "y", "width", and "height" to establish the exact bounding box so the engine can accurately scale your standard path.
    - IMPORTANT: For multi-colored or highly complex objects (like anime characters, specific cartoon figures, detailed humans, animals, logos), YOU MUST NOT use generic or stick-figure outlines. Instead, compose them out of MULTIPLE overlapping strokes in the 'strokes' array! Build the face, hair, iconic clothing, and accessories as separate, rich, full-color SVG paths. For example, if asked for an "anime character" or "Luffy", generate separate colored shapes for the straw hat, the face, hair, eyes, and outfit. Push your capabilities to generate detailed, recognizable SVG paths from your training data!
    - Standard SVGs: CRITICAL: If the user asks for ONE OF THESE objects, YOU MUST ALWAYS USE THE EXACT SVG STRING BELOW instead of hallucinating your own! Use shapeType="svg" with these paths:
-     * Bike / Bicycle: "M20,80 A20,20 0 1,0 20,40 A20,20 0 1,0 20,80 M80,80 A20,20 0 1,0 80,40 A20,20 0 1,0 80,80 M20,60 L45,60 L35,25 L70,25 L80,60 M20,60 L35,25 M45,60 L70,25 M80,60 L65,15 L60,15 L75,15 L80,10 M25,25 L45,25 L40,20 L30,20 Z"
-     * Happy Face: "M50,95 A45,45 0 1,0 50,5 A45,45 0 1,0 50,95 M25,60 Q50,85 75,60 M35,35 A5,5 0 1,0 35,45 A5,5 0 1,0 35,35 M65,35 A5,5 0 1,0 65,45 A5,5 0 1,0 65,35"
+     * Bike / Bicycle / Cycle / Cycling: "M 20 70 a 18 18 0 1 0 36 0 a 18 18 0 1 0 -36 0 M 70 70 a 18 18 0 1 0 36 0 a 18 18 0 1 0 -36 0 M 38 70 L 62 70 L 50 35 L 80 35 L 88 70 M 50 35 L 45 22 H 58 M 80 35 L 75 20 H 88 M 62 70 L 38 70"
+     * Flower / Rose / Blossom / Plant: "M 50 50 C 50 30 35 30 35 45 C 20 35 20 50 35 55 C 20 65 35 80 45 65 C 50 80 65 80 65 65 C 80 65 80 50 65 55 C 80 35 65 35 55 45 C 55 30 50 30 50 50 Z M 50 65 V 95 M 50 80 C 65 75 75 85 75 85 C 75 85 65 95 50 85 M 50 85 C 35 80 25 90 25 90 C 25 90 35 100 50 90"
+     * Airplane / Plane / Aircraft: "M 10 50 L 40 42 L 35 15 L 50 15 L 62 40 L 85 38 C 92 38 98 42 98 48 C 98 54 92 58 85 58 L 62 56 L 50 81 L 35 81 L 40 54 L 10 50 Z"
+     * Boat / Ship / Yacht / Sailboat: "M 15 65 L 25 85 H 75 L 85 65 Z M 50 65 V 15 L 80 45 H 50 Z M 45 25 L 25 45 H 45 Z"
+     * Fish / Sea creature: "M 85 50 C 60 20 25 30 10 50 C 25 70 60 80 85 50 Z M 85 50 L 100 30 V 70 Z M 30 42 A 3 3 0 1 0 30 46 A 3 3 0 1 0 30 42"
+     * Bird / Flying bird: "M 10 50 C 25 30 40 35 50 50 C 60 35 75 30 90 50 C 75 40 60 45 50 60 C 40 45 25 40 10 50 Z"
+     * Mountain / Landscape: "M 5 85 L 35 30 L 60 65 L 80 40 L 95 85 Z M 35 30 L 28 42 L 35 40 L 42 45 Z M 80 40 L 74 50 L 80 48 L 86 52 Z"
+     * Camera / Photo: "M 15 35 H 32 L 38 25 H 62 L 68 35 H 85 C 88 35 90 37 90 40 V 80 C 90 83 88 85 85 85 H 15 C 12 85 10 83 10 80 V 40 C 10 37 12 35 15 35 Z M 50 45 A 15 15 0 1 0 50 75 A 15 15 0 1 0 50 45 Z"
+     * Coffee / Cup / Mug / Tea: "M 20 30 H 70 V 70 C 70 80 60 85 50 85 C 40 85 30 80 30 70 V 30 Z M 70 40 H 82 C 87 40 90 43 90 48 V 58 C 90 63 87 66 82 66 H 70 Z M 15 90 H 75"
+     * Apple / Fruit: "M 50 35 C 30 20 10 35 10 60 C 10 85 35 95 50 95 C 65 95 90 85 90 60 C 90 35 70 20 50 35 Z M 50 35 C 50 20 60 10 70 10 M 50 25 C 40 15 30 18 30 18"
+     * Rocket / Space / Spaceship: "M 50 10 C 65 30 65 60 65 80 H 35 C 35 60 35 30 50 10 Z M 35 60 L 15 80 V 90 L 35 80 Z M 65 60 L 85 80 V 90 L 65 80 Z M 50 40 A 8 8 0 1 0 50 56 A 8 8 0 1 0 50 40 Z"
+     * Lightbulb / Idea / Lamp: "M 50 15 A 25 25 0 0 0 32 58 L 38 72 H 62 L 68 58 A 25 25 0 0 0 50 15 Z M 38 78 H 62 M 42 84 H 58 M 46 90 H 54"
+     * Umbrella / Rain: "M 10 50 C 10 25 30 15 50 15 C 70 15 90 25 90 50 C 75 42 65 42 50 50 C 35 42 25 42 10 50 Z M 50 15 V 80 C 50 86 44 90 38 90"
+     * Guitar / Music / Note: "M 50 10 L 50 50 C 42 45 30 48 30 58 C 30 68 40 72 50 68 C 60 65 65 55 65 50 V 25 L 85 18 V 40"
+     * Butterfly: "M 50 30 V 75 M 50 40 C 30 15 10 20 10 42 C 10 58 35 60 50 50 M 50 40 C 70 15 90 20 90 42 C 90 58 65 60 50 50 M 50 52 C 30 52 15 65 20 80 C 25 90 42 85 50 68 M 50 52 C 70 52 85 65 80 80 C 75 90 58 85 50 68 M 46 22 L 35 10 M 54 22 L 65 10"
+     * Crown / King / Queen: "M 15 75 L 10 30 L 32 50 L 50 20 L 68 50 L 90 30 L 85 75 Z M 15 83 H 85"
+     * Diamond / Gem / Jewel: "M 50 10 L 85 35 L 50 90 L 15 35 Z M 15 35 H 85 M 35 35 L 50 90 M 65 35 L 50 90 M 35 35 L 50 10 M 65 35 L 50 10"
+     * Clock / Time / Watch: "M 50 10 A 40 40 0 1 0 50 90 A 40 40 0 1 0 50 10 Z M 50 50 L 50 25 M 50 50 L 70 50"
+     * Moon / Crescent: "M 60 15 A 35 35 0 1 0 85 70 C 60 70 40 50 60 15 Z"
+     * Happy Face / Smile: "M50,95 A45,45 0 1,0 50,5 A45,45 0 1,0 50,95 M25,60 Q50,85 75,60 M35,35 A5,5 0 1,0 35,45 A5,5 0 1,0 35,35 M65,35 A5,5 0 1,0 65,45 A5,5 0 1,0 65,35"
      * Sad Face: "M50,95 A45,45 0 1,0 50,5 A45,45 0 1,0 50,95 M25,75 Q50,50 75,75 M35,35 A5,5 0 1,0 35,45 A5,5 0 1,0 35,35 M65,35 A5,5 0 1,0 65,45 A5,5 0 1,0 65,35"
      * House / Home: "M 50 10 L 10 40 L 10 90 L 90 90 L 90 40 Z M 10 40 L 90 40 M 40 90 L 40 60 L 60 60 L 60 90 Z M 20 50 L 35 50 L 35 65 L 20 65 Z M 65 50 L 80 50 L 80 65 L 65 65 Z"
      * Heart: "M 10,30 A 20,20 0,0,1 50,30 A 20,20 0,0,1 90,30 Q 90,60 50,90 Q 10,60 10,30 z"
@@ -297,7 +305,7 @@ DIRECTIONS:
      * Cat: "M320 192l17.1 0c22.1 38.3 63.5 64 110.9 64c11 0 21.8-1.4 32-4l0 4 0 32 0 192c0 17.7-14.3 32-32 32s-32-14.3-32-32l0-140.8L280 448l56 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-144 0c-53 0-96-43-96-96l0-223.5c0-16.1-12-29.8-28-31.8l-7.9-1c-17.5-2.2-30-18.2-27.8-35.7s18.2-30 35.7-27.8l7.9 1c48 6 84.1 46.8 84.1 95.3l0 85.3c34.4-51.7 93.2-85.8 160-85.8zm160 26.5s0 0 0 0c-10 3.5-20.8 5.5-32 5.5c-28.4 0-54-12.4-71.6-32c0 0 0 0 0 0c-3.7-4.1-7-8.5-9.9-13.2C357.3 164 352 146.6 352 128c0 0 0 0 0 0l0-96 0-20 0-1.3C352 4.8 356.7 .1 362.6 0l.2 0c3.3 0 6.4 1.6 8.4 4.2c0 0 0 0 0 .1L384 21.3l27.2 36.3L416 64l64 0 4.8-6.4L512 21.3 524.8 4.3c0 0 0 0 0-.1c2-2.6 5.1-4.2 8.4-4.2l.2 0C539.3 .1 544 4.8 544 10.7l0 1.3 0 20 0 96c0 17.3-4.6 33.6-12.6 47.6c-11.3 19.8-29.6 35.2-51.4 42.9zM432 128a16 16 0 1 0 -32 0 16 16 0 1 0 32 0zm48 16a16 16 0 1 0 0-32 16 16 0 1 0 0 32z"
      * Boy: "M50,10 A15,15 0 1,0 50,40 A15,15 0 1,0 50,10 Z M50,40 L50,60 M30,45 L70,45 L70,60 L30,60 Z M50,60 L35,95 M50,60 L65,95 M35,10 C 40,5 60,5 65,10 C 60,15 40,15 35,10 Z"
      * Girl: "M50,15 A12,12 0 1,0 50,39 A12,12 0 1,0 50,15 Z M50,39 L50,48 M40,48 L60,48 L75,70 L25,70 Z M45,70 L45,95 M55,70 L55,95 M38,15 Q25,25 35,39 M62,15 Q75,25 65,39"
-     * Car: "M20,60 L30,30 L70,30 L85,60 L95,60 C98,60 100,62 100,65 L100,75 C100,78 98,80 95,80 L90,80 A10,10 0 1,1 70,80 L30,80 A10,10 0 1,1 10,80 L5,80 C2,80 0,78 0,75 L0,65 C0,62 2,60 5,60 L20,60 Z M33,35 L25,55 L45,55 L45,35 Z M50,35 L50,55 L75,55 L68,35 Z"
+     * Car / Automobile / Vehicle / Van: "M20,60 L32,30 L68,30 L80,60 L95,60 C98,60 100,62 100,65 L100,75 C100,78 98,80 95,80 L88,80 A10,10 0 1,1 68,80 L32,80 A10,10 0 1,1 12,80 L5,80 C2,80 0,78 0,75 L0,65 C0,62 2,60 5,60 Z M35,35 L28,55 L47,55 L47,35 Z M52,35 L52,55 L72,55 L65,35 Z M14,80 a 7 7 0 1 0 14 0 a 7 7 0 1 0 -14 0 M 70,80 a 7 7 0 1 0 14 0 a 7 7 0 1 0 -14 0"
      * Credit Card: "M 5 20 C 2 20 0 22 0 25 L 0 75 C 0 78 2 80 5 80 L 95 80 C 98 80 100 78 100 75 L 100 25 C 100 22 98 20 95 20 L 5 20 Z M 0 35 L 100 35 L 100 45 L 0 45 Z M 10 55 L 30 55 L 30 65 L 10 65 Z"
    - circle: use shapeType="circle", provide "cx", "cy", "r".
    - rectangle: use shapeType="rectangle", provide "x", "y", "width", "height".
@@ -395,6 +403,21 @@ DIRECTIONS:
               setTopMessage("AI returned 0 strokes.");
               return;
           }
+
+          if (hasLatestHumanBbox && data.strokes.length > 0 && data.strokes[0].tool !== 'eraser') {
+            const eraserRect = {
+              tool: 'eraser',
+              color: theme === 'dark' ? '#0f1115' : '#ffffff',
+              size: 'thick',
+              shapeType: 'rectangle',
+              fill: true,
+              x: Math.round(pMinX - 15),
+              y: Math.round(pMinY - 15),
+              width: Math.round((pMaxX - pMinX) + 30),
+              height: Math.round((pMaxY - pMinY) + 30)
+            };
+            data.strokes.unshift(eraserRect as any);
+          }
           
           // Play completion sound effect
           setTimeout(() => playSound(600, 'triangle', 0.1), 0);
@@ -462,15 +485,51 @@ DIRECTIONS:
             let points: {x: number, y: number}[] = [];
             let subPaths: {x: number, y: number}[][] = [];
             
-            // Calculate safe visible center screen coordinates (accounting for AI assistant sidebar & controls)
-            const visibleCenterX = Math.max(250, Math.round((canvas.width - 380) / 2));
-            const visibleCenterY = Math.max(200, Math.round((canvas.height - 80) / 2 + 20));
+            // Calculate safe visible center screen coordinates
+            const visibleCenterX = Math.round(canvas.width / 2);
+            const visibleCenterY = Math.round(canvas.height / 2);
+
+            const computeTargetX = (rawX: any, shapeW: number) => {
+              const numX = rawX != null ? Number(rawX) : NaN;
+              if (hasLatestHumanBbox) {
+                if (!isNaN(numX) && numX >= pMinX - 100 && numX <= pMaxX + 100) {
+                  return numX;
+                }
+                return Math.round(pMinX);
+              }
+              if (!isNaN(numX) && numX >= 10 && numX <= canvas.width - 40) {
+                return numX;
+              }
+              if (isFinite(globalMaxX) && globalMaxX > 0) {
+                if (globalMaxX + shapeW + 40 <= canvas.width - 40) {
+                  return Math.round(globalMaxX + 50);
+                }
+              }
+              return Math.max(30, Math.round(visibleCenterX - shapeW / 2));
+            };
+
+            const computeTargetY = (rawY: any, shapeH: number) => {
+              const numY = rawY != null ? Number(rawY) : NaN;
+              if (hasLatestHumanBbox) {
+                if (!isNaN(numY) && numY >= pMinY - 100 && numY <= pMaxY + 100) {
+                  return numY;
+                }
+                return Math.round(pMinY);
+              }
+              if (!isNaN(numY) && numY >= 10 && numY <= canvas.height - 40) {
+                return numY;
+              }
+              if (isFinite(globalMinY) && globalMinY > 0) {
+                return Math.round(globalMinY);
+              }
+              return Math.max(30, Math.round(visibleCenterY - shapeH / 2));
+            };
 
             // Generate points based on shape primitive
             if (stroke.shapeType === 'circle') {
-              const cx = stroke.cx != null && !isNaN(Number(stroke.cx)) && Number(stroke.cx) > 50 && Number(stroke.cx) < canvas.width - 380 ? Number(stroke.cx) : visibleCenterX;
-              const cy = stroke.cy != null && !isNaN(Number(stroke.cy)) && Number(stroke.cy) > 50 && Number(stroke.cy) < canvas.height - 80 ? Number(stroke.cy) : visibleCenterY;
               const r = stroke.r != null && !isNaN(Number(stroke.r)) && Number(stroke.r) > 0 ? Number(stroke.r) : 100;
+              const cx = computeTargetX(stroke.cx != null ? stroke.cx : (stroke.x != null ? Number(stroke.x) + r : null), r * 2);
+              const cy = computeTargetY(stroke.cy != null ? stroke.cy : (stroke.y != null ? Number(stroke.y) + r : null), r * 2);
               const steps = 36;
               for (let i = 0; i <= steps; i++) {
                 const angle = (i / steps) * Math.PI * 2;
@@ -484,8 +543,8 @@ DIRECTIONS:
             } else if (stroke.shapeType === 'rectangle') {
               const w = stroke.width != null && !isNaN(Number(stroke.width)) && Number(stroke.width) > 0 ? Number(stroke.width) : 320;
               const h = stroke.height != null && !isNaN(Number(stroke.height)) && Number(stroke.height) > 0 ? Number(stroke.height) : 220;
-              const x = stroke.x != null && !isNaN(Number(stroke.x)) && Number(stroke.x) > 20 && Number(stroke.x) < canvas.width - 380 ? Number(stroke.x) : Math.round(visibleCenterX - w / 2);
-              const y = stroke.y != null && !isNaN(Number(stroke.y)) && Number(stroke.y) > 20 && Number(stroke.y) < canvas.height - 80 ? Number(stroke.y) : Math.round(visibleCenterY - h / 2);
+              const x = computeTargetX(stroke.x, w);
+              const y = computeTargetY(stroke.y, h);
               points = [
                 {x, y},
                 {x: x + w, y},
@@ -612,19 +671,16 @@ DIRECTIONS:
                     const targetHeight = (stroke.height != null && !isNaN(Number(stroke.height)) && Number(stroke.height) > 0)
                       ? Number(stroke.height) : Math.max(overallHeight, 160);
 
-                    const targetX = (stroke.x != null && !isNaN(Number(stroke.x)) && Number(stroke.x) > 50 && Number(stroke.x) < canvas.width - 380)
-                      ? Number(stroke.x)
-                      : Math.round(visibleCenterX - targetWidth / 2);
-                    const targetY = (stroke.y != null && !isNaN(Number(stroke.y)) && Number(stroke.y) > 50 && Number(stroke.y) < canvas.height - 80)
-                      ? Number(stroke.y)
-                      : Math.round(visibleCenterY - targetHeight / 2);
+                    const targetX = computeTargetX(stroke.x, targetWidth);
+                    const targetY = computeTargetY(stroke.y, targetHeight);
 
                     const scaleX = overallWidth > 0.1 ? targetWidth / overallWidth : 1;
                     const scaleY = overallHeight > 0.1 ? targetHeight / overallHeight : 1;
 
                     for (const item of pathData) {
-                      const sampleRate = 3;
-                      const steps = Math.max(8, Math.floor(item.len / sampleRate));
+                      const sampleRate = 1.5;
+                      const steps = Math.max(35, Math.floor(item.len / sampleRate));
+                      const stepLen = item.len / steps;
                       let currentSubPath: { x: number; y: number }[] = [];
                       let lastSvgPt: DOMPoint | null = null;
 
@@ -633,15 +689,16 @@ DIRECTIONS:
                         const mappedX = targetX + (p.x - overallX) * scaleX;
                         const mappedY = targetY + (p.y - overallY) * scaleY;
 
-                        const jitterX = stroke.fill ? 0 : (Math.random() - 0.5) * 1.0;
-                        const jitterY = stroke.fill ? 0 : (Math.random() - 0.5) * 1.0;
+                        const jitterX = stroke.fill ? 0 : (Math.random() - 0.5) * 0.8;
+                        const jitterY = stroke.fill ? 0 : (Math.random() - 0.5) * 0.8;
                         const newPt = { x: mappedX + jitterX, y: mappedY + jitterY };
 
                         if (currentSubPath.length > 0 && lastSvgPt) {
                           const svgDist = Math.hypot(p.x - lastSvgPt.x, p.y - lastSvgPt.y);
-                          const stepLen = item.len / steps;
-                          if (svgDist > stepLen * 2 + 2) {
-                            subPaths.push(currentSubPath);
+                          if (svgDist > Math.max(3.5, stepLen * 2.2)) {
+                            if (currentSubPath.length > 0) {
+                              subPaths.push(currentSubPath);
+                            }
                             currentSubPath = [];
                           }
                         }

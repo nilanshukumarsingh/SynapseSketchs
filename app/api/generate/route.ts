@@ -26,28 +26,34 @@ function safeParseJSON(rawText: string): any {
 
   let cleanText = rawText.trim();
 
-  // Extract JSON block if surrounded by markdown codeblock or extra text
-  const codeBlockMatch = cleanText.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-  if (codeBlockMatch) {
+  // Strip markdown code block wrapper if present
+  const codeBlockMatch = cleanText.match(/```(?:json)?\s*([\s\S]*?)(?:```|$)/i);
+  if (codeBlockMatch && codeBlockMatch[1]) {
     cleanText = codeBlockMatch[1].trim();
   } else {
-    const firstBrace = cleanText.indexOf('{');
-    const lastBrace = cleanText.lastIndexOf('}');
-    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace >= firstBrace) {
-      cleanText = cleanText.substring(firstBrace, lastBrace + 1);
-    } else if (firstBrace !== -1) {
-      cleanText = cleanText.substring(firstBrace);
-    }
+    cleanText = cleanText.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
   }
 
-  // Attempt 1: Direct standard JSON parse
+  // Attempt 1: Direct standard JSON parse on cleanText
   try {
     return JSON.parse(cleanText);
   } catch (e1) {
     console.warn("Direct JSON.parse failed. Sanitizing and repairing...", e1);
   }
 
-  // Attempt 2: Sanitize control characters inside string literals (newlines, tabs, etc.)
+  // Attempt 2: If there's extra text around JSON, extract from first { to last }
+  const firstBrace = cleanText.indexOf('{');
+  const lastBrace = cleanText.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    const extracted = cleanText.substring(firstBrace, lastBrace + 1);
+    try {
+      return JSON.parse(extracted);
+    } catch (_) {
+      // Continue to repairing
+    }
+  }
+
+  // Attempt 3: Sanitize control characters inside string literals (newlines, tabs, etc.)
   let repaired = cleanText.replace(/[\u0000-\u001F\u007F-\u009F]/g, (c) => {
     if (c === '\n') return '\\n';
     if (c === '\r') return '\\r';
@@ -57,70 +63,135 @@ function safeParseJSON(rawText: string): any {
 
   try {
     return JSON.parse(repaired);
-  } catch (e2) {
-    // Attempt 3: Remove trailing commas before } or ]
-    repaired = repaired.replace(/,\s*([\}\]])/g, '$1');
-  }
+  } catch (_) {}
 
+  // Attempt 4: Remove trailing commas before } or ]
+  repaired = repaired.replace(/,\s*([\}\]])/g, '$1');
   try {
     return JSON.parse(repaired);
-  } catch (e3) {
-    // Attempt 4: Auto-repair truncated JSON
-    repaired = repairTruncatedJson(repaired);
-    return JSON.parse(repaired);
-  }
+  } catch (_) {}
+
+  // Attempt 5: Auto-repair truncated JSON using iterative repair algorithm
+  const repairedResult = repairTruncatedJson(cleanText);
+  return JSON.parse(repairedResult);
 }
 
 function repairTruncatedJson(jsonStr: string): string {
-  let s = jsonStr.trim();
-  let inString = false;
-  let escape = false;
-  const openBrackets: string[] = [];
+  let raw = jsonStr.trim();
+  
+  // Clean markdown prefixes/suffixes
+  raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
 
-  for (let i = 0; i < s.length; i++) {
-    const char = s[i];
-    if (escape) {
-      escape = false;
-      continue;
+  const firstBrace = raw.search(/[\{\[]/);
+  if (firstBrace !== -1) {
+    raw = raw.substring(firstBrace);
+  }
+
+  let currentWorking = raw;
+
+  // Progressive repair loop: try repairing current working string; if JSON.parse fails, trim back trailing char
+  for (let attempt = 0; attempt < 25; attempt++) {
+    let s = currentWorking.trim();
+
+    // Check if we are inside a string literal
+    let inString = false;
+    let escape = false;
+
+    for (let i = 0; i < s.length; i++) {
+      const char = s[i];
+      if (escape) {
+        escape = false;
+        continue;
+      }
+      if (char === '\\') {
+        escape = true;
+        continue;
+      }
+      if (char === '"') {
+        inString = !inString;
+      }
     }
-    if (char === '\\') {
-      escape = true;
-      continue;
+
+    if (inString) {
+      s += '"';
     }
-    if (char === '"') {
-      inString = !inString;
-      continue;
-    }
-    if (!inString) {
-      if (char === '{' || char === '[') {
-        openBrackets.push(char);
-      } else if (char === '}') {
-        if (openBrackets.length > 0 && openBrackets[openBrackets.length - 1] === '{') {
-          openBrackets.pop();
+
+    // Strip trailing incomplete key/value or punctuation e.g. ,"key": or ,"key" or : or ,
+    s = s.replace(/(?:,|\{)\s*"[^"]*"\s*:\s*$/g, (m) => m.startsWith('{') ? '{' : '');
+    s = s.replace(/(?:,|\{)\s*"[^"]*"\s*$/g, (m) => m.startsWith('{') ? '{' : '');
+    s = s.replace(/[:,\s]+$/, '');
+
+    // Track open brackets to balance
+    const openBrackets: string[] = [];
+    let insideStr = false;
+    let esc = false;
+
+    for (let i = 0; i < s.length; i++) {
+      const c = s[i];
+      if (esc) {
+        esc = false;
+        continue;
+      }
+      if (c === '\\') {
+        esc = true;
+        continue;
+      }
+      if (c === '"') {
+        insideStr = !insideStr;
+        continue;
+      }
+      if (!insideStr) {
+        if (c === '{' || c === '[') {
+          openBrackets.push(c);
+        } else if (c === '}') {
+          if (openBrackets.length > 0 && openBrackets[openBrackets.length - 1] === '{') {
+            openBrackets.pop();
+          }
+        } else if (c === ']') {
+          if (openBrackets.length > 0 && openBrackets[openBrackets.length - 1] === '[') {
+            openBrackets.pop();
+          }
         }
-      } else if (char === ']') {
-        if (openBrackets.length > 0 && openBrackets[openBrackets.length - 1] === '[') {
-          openBrackets.pop();
+      }
+    }
+
+    if (insideStr) {
+      s += '"';
+    }
+
+    s = s.replace(/[:,\s]+$/, '');
+
+    // Close remaining open brackets
+    for (let i = openBrackets.length - 1; i >= 0; i--) {
+      const b = openBrackets[i];
+      if (b === '{') s += '}';
+      else if (b === '[') s += ']';
+    }
+
+    s = s.replace(/,\s*([\}\]])/g, '$1');
+
+    try {
+      JSON.parse(s);
+      return s; // Repair successful!
+    } catch (err) {
+      // Step back in currentWorking to try the next boundary
+      if (currentWorking.length > 10) {
+        // Try trimming off last char or last token
+        const lastComma = currentWorking.lastIndexOf(',');
+        const lastBraceOrBracket = Math.max(currentWorking.lastIndexOf('}'), currentWorking.lastIndexOf(']'));
+        const cutPoint = Math.max(lastComma, lastBraceOrBracket);
+        if (cutPoint > 10 && cutPoint > currentWorking.length - 100) {
+          currentWorking = currentWorking.substring(0, cutPoint);
+        } else {
+          currentWorking = currentWorking.substring(0, currentWorking.length - 1);
         }
+      } else {
+        break;
       }
     }
   }
 
-  if (inString) {
-    s += '"';
-  }
-
-  s = s.replace(/[:,\s]+$/, '');
-
-  while (openBrackets.length > 0) {
-    const b = openBrackets.pop();
-    if (b === '{') s += '}';
-    else if (b === '[') s += ']';
-  }
-
-  s = s.replace(/,\s*([\}\]])/g, '$1');
-
-  return s;
+  return currentWorking;
 }
 
 export async function POST(req: Request) {
@@ -228,15 +299,14 @@ export async function POST(req: Request) {
 
       const client = new GoogleGenAI({ apiKey: finalApiKey });
 
-      const preferredModel = settings?.geminiModel || 'gemini-3.6-flash';
+      const preferredModel = settings?.geminiModel || 'gemini-2.5-flash';
       const allPossibleModels = [
         preferredModel,
-        'gemini-3.6-flash',
-        'gemini-3.5-flash',
-        'gemini-3.1-pro-preview',
         'gemini-2.5-flash',
         'gemini-2.5-pro',
-        'gemini-1.5-flash'
+        'gemini-2.0-flash',
+        'gemini-1.5-flash',
+        'gemini-1.5-pro'
       ];
       // Dedup keeping order
       const geminiModels = Array.from(new Set(allPossibleModels)).filter(Boolean);
@@ -246,6 +316,8 @@ export async function POST(req: Request) {
       let chosenModelUsed = "";
       let totalTokens = 500;
 
+      const fullPromptText = prompt ? `${systemPrompt}\n\nUSER PROMPT: "${prompt}"` : systemPrompt;
+
       for (const modelName of geminiModels) {
         try {
           const response = await client.models.generateContent({
@@ -253,7 +325,7 @@ export async function POST(req: Request) {
             contents: {
               parts: [
                 { inlineData: { data: base64Data, mimeType: 'image/png' } },
-                { text: systemPrompt },
+                { text: fullPromptText },
               ],
             },
             config: {
