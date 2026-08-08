@@ -53,9 +53,7 @@ export default function SettingsModal() {
   const geminiModels = [
     { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', version: 'v2.5', desc: 'Recommended — ultra-fast & intelligent visual parsing' },
     { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', version: 'v2.5', desc: 'Complex — deep multi-object reasoning & analysis' },
-    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', version: 'v2.0', desc: 'Next-gen fast multimodal generation' },
-    { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', version: 'v1.5', desc: 'Lightweight & agile canvas generation' },
-    { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', version: 'v1.5', desc: 'High capacity reasoning' }
+    { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', version: 'v2.0', desc: 'Next-gen fast multimodal generation' }
   ];
 
   const claudeModels = [

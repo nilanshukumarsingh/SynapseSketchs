@@ -304,9 +304,7 @@ export async function POST(req: Request) {
         preferredModel,
         'gemini-2.5-flash',
         'gemini-2.5-pro',
-        'gemini-2.0-flash',
-        'gemini-1.5-flash',
-        'gemini-1.5-pro'
+        'gemini-2.0-flash'
       ];
       // Dedup keeping order
       const geminiModels = Array.from(new Set(allPossibleModels)).filter(Boolean);
@@ -319,36 +317,52 @@ export async function POST(req: Request) {
       const fullPromptText = prompt ? `${systemPrompt}\n\nUSER PROMPT: "${prompt}"` : systemPrompt;
 
       for (const modelName of geminiModels) {
-        try {
-          const response = await client.models.generateContent({
-            model: modelName, 
-            contents: {
-              parts: [
-                { inlineData: { data: base64Data, mimeType: 'image/png' } },
-                { text: fullPromptText },
-              ],
-            },
-            config: {
-              maxOutputTokens: settings?.maxTokens || 8192,
-              temperature: settings?.temperature !== undefined ? settings.temperature : 0.4,
-              responseMimeType: 'application/json',
-              responseSchema: schemaObj as any
-            }
-          });
+        // Try up to 2 attempts per model (1 immediate + 1 retry after short delay for 503/429)
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            const response = await client.models.generateContent({
+              model: modelName, 
+              contents: {
+                parts: [
+                  { inlineData: { data: base64Data, mimeType: 'image/png' } },
+                  { text: fullPromptText },
+                ],
+              },
+              config: {
+                maxOutputTokens: settings?.maxTokens || 8192,
+                temperature: settings?.temperature !== undefined ? settings.temperature : 0.4,
+                responseMimeType: 'application/json',
+                responseSchema: schemaObj as any
+              }
+            });
 
-          responseText = response.text || "";
-          totalTokens = response.usageMetadata?.totalTokenCount || 500;
-          chosenModelUsed = modelName;
-          break; // Successfully got response
-        } catch (e: any) {
-          lastError = e;
-          console.warn(`[Server Gemini Fallback] Model ${modelName} failed. Error: ${e.message || e}. Failing over...`);
-          continue;
+            responseText = response.text || "";
+            totalTokens = response.usageMetadata?.totalTokenCount || 500;
+            chosenModelUsed = modelName;
+            break; // Successfully got response
+          } catch (e: any) {
+            lastError = e;
+            const errMsg = String(e?.message || e);
+            const isTransient = errMsg.includes('503') || errMsg.includes('UNAVAILABLE') || errMsg.includes('429') || errMsg.includes('RESOURCE_EXHAUSTED');
+            
+            if (isTransient && attempt === 0) {
+              // Wait 1.2s before retrying same model once
+              await new Promise(res => setTimeout(res, 1200));
+              continue;
+            }
+            console.warn(`[Server Gemini Fallback] Model ${modelName} attempt ${attempt + 1} failed. Error: ${errMsg}. Failing over...`);
+            break; // Move to next model
+          }
         }
+        if (responseText) break;
       }
 
       if (!responseText && lastError) {
-        throw new Error(lastError.message || "All Gemini models are exhausted or rate limited.");
+        const errStr = String(lastError?.message || lastError);
+        if (errStr.includes('503') || errStr.includes('UNAVAILABLE') || errStr.includes('429') || errStr.includes('RESOURCE_EXHAUSTED')) {
+          throw new Error("Gemini service is currently experiencing high demand. Please wait a few seconds and try again!");
+        }
+        throw new Error(lastError.message || "All Gemini models are exhausted or unavailable.");
       }
 
       const result = safeParseJSON(responseText);

@@ -45,13 +45,18 @@ export async function handleGenerateBg(prompt: string, onGeneratingStateChange?:
       })
     });
 
+    const rawText = await response.text();
+    let data: any = null;
+    try {
+      data = JSON.parse(rawText);
+    } catch {}
+
     if (!response.ok) {
-      const err = await response.json();
-      throw new Error(err.error || "Failed to generate bg");
+      const msg = data?.error || data?.message || (rawText && rawText.length < 200 ? rawText : "Failed to generate bg");
+      throw new Error(msg);
     }
 
-    const data = await response.json();
-    const imageUrl = data.imageUrl;
+    const imageUrl = data?.imageUrl;
 
     // Rough token tracking for bg (images are fixed cost usually, but we'll estimate)
     addTokens(1500);
@@ -379,12 +384,27 @@ DIRECTIONS:
         }),
       });
 
+      const rawText = await response.text();
+      try {
+        data = JSON.parse(rawText);
+      } catch {}
+
       if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || "AI Generation Request failed.");
+        let msg = data?.error || data?.message;
+        if (!msg) {
+          if (rawText.includes('Rate exceeded') || response.status === 429) {
+            msg = "Gemini service is experiencing high demand / rate limits. Please wait a few seconds and try again!";
+          } else {
+            msg = rawText && rawText.length < 200 ? rawText : "AI Generation Request failed.";
+          }
+        }
+        throw new Error(msg);
       }
 
-      data = await response.json();
+      if (!data) {
+        throw new Error("Invalid response from AI server.");
+      }
+
       if (data.tokensUsed) {
         addTokens(data.tokensUsed);
       }
@@ -404,19 +424,34 @@ DIRECTIONS:
               return;
           }
 
-          if (hasLatestHumanBbox && data.strokes.length > 0 && data.strokes[0].tool !== 'eraser') {
-            const eraserRect = {
-              tool: 'eraser',
-              color: theme === 'dark' ? '#0f1115' : '#ffffff',
-              size: 'thick',
-              shapeType: 'rectangle',
-              fill: true,
-              x: Math.round(pMinX - 15),
-              y: Math.round(pMinY - 15),
-              width: Math.round((pMaxX - pMinX) + 30),
-              height: Math.round((pMaxY - pMinY) + 30)
-            };
-            data.strokes.unshift(eraserRect as any);
+          if (hasLatestHumanBbox && data.strokes.length > 0) {
+            useStore.setState((state) => {
+              let newStrokes = state.strokes;
+              // Remove the user's messy hand strokes/selection rectangle from memory
+              if (latestHumanStrokes.length > 0) {
+                const targetIds = new Set(latestHumanStrokes.map(s => s.id));
+                newStrokes = newStrokes.filter(s => !targetIds.has(s.id));
+              }
+              // If using ai-eraser, remove any strokes within the erase boundary
+              if (currentTool === 'ai-eraser') {
+                const margin = 15;
+                newStrokes = newStrokes.filter((s) => {
+                  const overlaps = s.points.some((pt) =>
+                    pt.x >= pMinX - margin && pt.x <= pMaxX + margin &&
+                    pt.y >= pMinY - margin && pt.y <= pMaxY + margin
+                  );
+                  return !overlaps;
+                });
+              }
+              const newHistory = state.history.slice(0, state.historyStep + 1);
+              newHistory.push(newStrokes);
+              return {
+                strokes: newStrokes,
+                history: newHistory,
+                historyStep: newHistory.length - 1,
+                latestHumanStrokeStartIndex: newStrokes.length
+              };
+            });
           }
           
           // Play completion sound effect

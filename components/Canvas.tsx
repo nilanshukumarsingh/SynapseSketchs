@@ -207,7 +207,7 @@ export default function Canvas() {
           }
           
           if (stroke.fill) {
-            offCtx.fillStyle = stroke.color;
+            offCtx.fillStyle = (stroke.tool === 'eraser' || stroke.tool === 'ai-eraser') ? 'rgba(0,0,0,1)' : stroke.color;
             offCtx.fill();
             // Also stroke the outline to avoid jaggy edges between adjacent polygons
             offCtx.stroke(); 
