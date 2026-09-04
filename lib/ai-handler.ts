@@ -93,7 +93,7 @@ export async function handleGenerateBg(prompt: string, onGeneratingStateChange?:
 }
 
 export function prepareAiTargetPreview(promptText?: string) {
-  const { strokes, offset, scale, setAiPreviewBox } = useStore.getState();
+  const { strokes, offset, scale, setAiPreviewBox, aiMemory } = useStore.getState();
   
   let latestHumanStrokes: Stroke[] = [];
   for (let i = strokes.length - 1; i >= 0; i--) {
@@ -109,6 +109,12 @@ export function prepareAiTargetPreview(promptText?: string) {
   const canvasH = canvas ? canvas.height : window.innerHeight;
 
   let boxX = 0, boxY = 0, boxW = 340, boxH = 240;
+  const safeTop = 110;
+  const safeBottom = Math.max(safeTop, canvasH - boxH - 110);
+  const safeLeft = 30;
+  const safeRight = Math.max(safeLeft, canvasW - boxW - 30);
+
+  const s = scale || 1;
 
   if (latestHumanStrokes.length > 0) {
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
@@ -124,7 +130,6 @@ export function prepareAiTargetPreview(promptText?: string) {
     });
 
     if (minX !== Infinity) {
-      const s = scale || 1;
       const pMinX = minX * s + offset.x;
       const pMaxX = maxX * s + offset.x;
       const pMinY = minY * s + offset.y;
@@ -135,19 +140,111 @@ export function prepareAiTargetPreview(promptText?: string) {
       boxY = Math.round(pMinY - 20);
 
       // Safe viewport clamping so preview frame is never hidden behind top/bottom toolbars
-      const safeTop = 110;
-      const safeBottom = canvasH - boxH - 110;
-      boxY = Math.max(safeTop, Math.min(Math.max(safeTop, safeBottom), boxY));
-      const safeLeft = 30;
-      const safeRight = canvasW - boxW - 30;
-      boxX = Math.max(safeLeft, Math.min(Math.max(safeLeft, safeRight), boxX));
+      boxY = Math.max(safeTop, Math.min(safeBottom, boxY));
+      boxX = Math.max(safeLeft, Math.min(safeRight, boxX));
     }
   } else {
-    // Center open space comfortably in visible canvas
-    boxW = 340;
-    boxH = 240;
-    boxX = Math.round(canvasW / 2 - boxW / 2);
-    boxY = Math.round(Math.max(120, canvasH / 2 - boxH / 2));
+    // Check if there is existing artwork already on the canvas (from previous human or AI generations)
+    let contentMinX = Infinity, contentMaxX = -Infinity, contentMinY = Infinity, contentMaxY = -Infinity;
+    if (strokes.length > 0) {
+      strokes.forEach(str => {
+        str.points.forEach(p => {
+          if (p.x !== -9999 && p.y !== -9999) {
+            const sx = p.x * s + offset.x;
+            const sy = p.y * s + offset.y;
+            if (sx < contentMinX) contentMinX = sx;
+            if (sx > contentMaxX) contentMaxX = sx;
+            if (sy < contentMinY) contentMinY = sy;
+            if (sy > contentMaxY) contentMaxY = sy;
+          }
+        });
+      });
+    }
+
+    // Also factor in recent AI memory bounding boxes
+    if (aiMemory && aiMemory.length > 0) {
+      const lastMem = aiMemory[aiMemory.length - 1];
+      if (lastMem && lastMem.box) {
+        contentMinX = Math.min(contentMinX, lastMem.box.x);
+        contentMaxX = Math.max(contentMaxX, lastMem.box.x + lastMem.box.width);
+        contentMinY = Math.min(contentMinY, lastMem.box.y);
+        contentMaxY = Math.max(contentMaxY, lastMem.box.y + lastMem.box.height);
+      }
+    }
+
+    const pLower = (promptText || '').toLowerCase();
+    const wantsAnotherSide = /another\s*side|other\s*side|opposite\s*side|different\s*side|elsewhere/i.test(pLower);
+    const wantsRight = /\b(right|next\s*to|beside|east)\b/i.test(pLower);
+    const wantsLeft = /\b(left|west)\b/i.test(pLower);
+    const wantsAbove = /\b(above|top|over|north)\b/i.test(pLower);
+    const wantsBelow = /\b(below|bottom|under|south)\b/i.test(pLower);
+
+    if (contentMinX !== Infinity) {
+      let candidateX = Math.round(canvasW / 2 - boxW / 2);
+      let candidateY = Math.round(Math.max(safeTop, canvasH / 2 - boxH / 2));
+
+      if (wantsLeft) {
+        // Explicitly place to the left of existing artwork
+        candidateX = contentMinX - boxW - 50;
+        candidateY = Math.max(safeTop, Math.min(safeBottom, contentMinY));
+        if (candidateX < safeLeft) {
+          // Fallback to right side if no room on left
+          candidateX = contentMaxX + 50;
+        }
+      } else if (wantsAbove) {
+        // Place above
+        candidateX = Math.max(safeLeft, Math.min(safeRight, contentMinX));
+        candidateY = contentMinY - boxH - 50;
+        if (candidateY < safeTop) {
+          candidateY = contentMaxY + 50;
+        }
+      } else if (wantsBelow) {
+        // Place below
+        candidateX = Math.max(safeLeft, Math.min(safeRight, contentMinX));
+        candidateY = contentMaxY + 50;
+        if (candidateY > safeBottom) {
+          candidateY = contentMinY - boxH - 50;
+        }
+      } else if (wantsRight || wantsAnotherSide || strokes.length > 0) {
+        // Primary choice: Place on the right side of existing artwork
+        candidateX = contentMaxX + 50;
+        candidateY = Math.max(safeTop, Math.min(safeBottom, contentMinY));
+
+        // If right side is off screen or full, place to the left
+        if (candidateX > safeRight) {
+          candidateX = contentMinX - boxW - 50;
+          candidateY = Math.max(safeTop, Math.min(safeBottom, contentMinY));
+
+          // If left side is also out of space, place below or above
+          if (candidateX < safeLeft) {
+            candidateX = Math.round(canvasW / 2 - boxW / 2);
+            candidateY = contentMaxY + 50;
+            if (candidateY > safeBottom) {
+              candidateY = contentMinY - boxH - 50;
+            }
+          }
+        }
+      }
+
+      boxX = Math.round(Math.max(safeLeft, Math.min(safeRight, candidateX)));
+      boxY = Math.round(Math.max(safeTop, Math.min(safeBottom, candidateY)));
+    } else {
+      // Blank canvas: Center comfortably
+      boxX = Math.round(canvasW / 2 - boxW / 2);
+      boxY = Math.round(Math.max(safeTop, canvasH / 2 - boxH / 2));
+    }
+  }
+
+  // Conversational prompt inheritance: if the user says "draw on another side" or "another one", inherit last recognized object
+  let effectivePrompt = promptText || 'Complete drawing / AI embellishment';
+  const pLowerTrim = (promptText || '').toLowerCase().trim();
+  const isGenericRelational = /^(draw\s+)?(on\s+)?(another|other|opposite)\s*side$/i.test(pLowerTrim) ||
+    /^(draw\s+)?(another|one\s+more)(\s+on\s+the\s+(other|another|right|left)\s+side)?$/i.test(pLowerTrim) ||
+    /^(draw\s+)?(on\s+the\s+)?(right|left)\s*side$/i.test(pLowerTrim);
+
+  if (isGenericRelational && aiMemory && aiMemory.length > 0) {
+    const prevObj = aiMemory[aiMemory.length - 1].recognizedObject || 'drawing';
+    effectivePrompt = `Draw ${prevObj} on another side`;
   }
 
   setAiPreviewBox({
@@ -155,7 +252,7 @@ export function prepareAiTargetPreview(promptText?: string) {
     y: boxY,
     width: boxW,
     height: boxH,
-    prompt: promptText || 'Complete drawing / AI embellishment'
+    prompt: effectivePrompt
   });
 }
 
@@ -473,7 +570,9 @@ DIRECTIONS:
 
     // 1. DATASET VOCABULARY & OBJECT MEMORY ENGINE:
     // Check if the prompt requests a known object from our high-precision vector dataset dictionary
-    const matchedDataset = promptText ? findDatasetDrawing(promptText) : null;
+    const { aiMemory } = useStore.getState();
+    const lastMemoryObject = aiMemory && aiMemory.length > 0 ? aiMemory[aiMemory.length - 1].recognizedObject : undefined;
+    const matchedDataset = promptText ? findDatasetDrawing(promptText, lastMemoryObject) : null;
     if (matchedDataset) {
       // Calculate precise target placement coordinates
       let dW = targetBox ? targetBox.width : (hasLatestHumanBbox ? Math.max(160, pMaxX - pMinX) : 340);
@@ -485,9 +584,18 @@ DIRECTIONS:
       if (!targetBox && !hasLatestHumanBbox && globalMinX !== Infinity) {
         const s = scale || 1;
         const gMaxX = Math.round(globalMaxX * s + offset.x);
+        const gMinX = Math.round(globalMinX * s + offset.x);
         const gMinY = Math.round(globalMinY * s + offset.y);
-        if (gMaxX + dW + 40 < canvas.width) {
-          dX = gMaxX + 40;
+        const pLower = (promptText || '').toLowerCase();
+        const wantsLeft = /\b(left|west)\b/i.test(pLower);
+        if (wantsLeft && gMinX - dW - 50 >= 30) {
+          dX = gMinX - dW - 50;
+          dY = Math.max(120, gMinY);
+        } else if (gMaxX + dW + 50 <= canvas.width - 30) {
+          dX = gMaxX + 50;
+          dY = Math.max(120, gMinY);
+        } else if (gMinX - dW - 50 >= 30) {
+          dX = gMinX - dW - 50;
           dY = Math.max(120, gMinY);
         }
       }
@@ -729,31 +837,37 @@ DIRECTIONS:
                 return { x: finalX, y: finalY };
               }
 
-              if (isFinite(globalMinX) && isFinite(globalMaxX) && isFinite(globalMinY) && isFinite(globalMaxY)) {
+              const s = scale || 1;
+              const gMinX = isFinite(globalMinX) ? Math.round(globalMinX * s + offset.x) : Infinity;
+              const gMaxX = isFinite(globalMaxX) ? Math.round(globalMaxX * s + offset.x) : -Infinity;
+              const gMinY = isFinite(globalMinY) ? Math.round(globalMinY * s + offset.y) : Infinity;
+              const gMaxY = isFinite(globalMaxY) ? Math.round(globalMaxY * s + offset.y) : -Infinity;
+
+              if (isFinite(gMinX) && isFinite(gMaxX) && isFinite(gMinY) && isFinite(gMaxY)) {
                 let candidateX = !isNaN(numX) ? numX : visibleCenterX - shapeW / 2;
                 let candidateY = !isNaN(numY) ? numY : visibleCenterY - shapeH / 2;
 
                 const margin = 30;
                 const isOverlapping = (
-                  candidateX < globalMaxX + margin &&
-                  candidateX + shapeW > globalMinX - margin &&
-                  candidateY < globalMaxY + margin &&
-                  candidateY + shapeH > globalMinY - margin
+                  candidateX < gMaxX + margin &&
+                  candidateX + shapeW > gMinX - margin &&
+                  candidateY < gMaxY + margin &&
+                  candidateY + shapeH > gMinY - margin
                 );
 
                 if (isOverlapping || isNaN(numX) || isNaN(numY)) {
                   // Place in open space on canvas window without overlapping existing drawing
-                  if (globalMaxX + shapeW + 50 <= canvas.width - 30) {
-                    return { x: Math.round(globalMaxX + 50), y: Math.round(globalMinY) };
+                  if (gMaxX + shapeW + 50 <= canvas.width - 30) {
+                    return { x: Math.round(gMaxX + 50), y: Math.round(gMinY) };
                   }
-                  if (globalMinX - shapeW - 50 >= 30) {
-                    return { x: Math.round(globalMinX - shapeW - 50), y: Math.round(globalMinY) };
+                  if (gMinX - shapeW - 50 >= 30) {
+                    return { x: Math.round(gMinX - shapeW - 50), y: Math.round(gMinY) };
                   }
-                  if (globalMaxY + shapeH + 50 <= canvas.height - 30) {
-                    return { x: Math.round(Math.max(30, globalMinX)), y: Math.round(globalMaxY + 50) };
+                  if (gMaxY + shapeH + 50 <= canvas.height - 30) {
+                    return { x: Math.round(Math.max(30, gMinX)), y: Math.round(gMaxY + 50) };
                   }
-                  if (globalMinY - shapeH - 50 >= 30) {
-                    return { x: Math.round(Math.max(30, globalMinX)), y: Math.round(globalMinY - shapeH - 50) };
+                  if (gMinY - shapeH - 50 >= 30) {
+                    return { x: Math.round(Math.max(30, gMinX)), y: Math.round(gMinY - shapeH - 50) };
                   }
                 }
                 return { x: Math.round(candidateX), y: Math.round(candidateY) };

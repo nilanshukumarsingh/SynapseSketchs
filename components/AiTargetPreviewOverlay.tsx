@@ -9,6 +9,7 @@ export default function AiTargetPreviewOverlay() {
   const { aiPreviewBox, setAiPreviewBox, updateAiPreviewBoxPos, setIsGenerating, theme } = useStore();
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState<{ x: number; y: number; boxX: number; boxY: number } | null>(null);
+  const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null);
 
   if (!aiPreviewBox) return null;
 
@@ -27,6 +28,9 @@ export default function AiTargetPreviewOverlay() {
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setCursorPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+
     if (!isDragging || !dragStart) return;
     e.stopPropagation();
     const dx = e.clientX - dragStart.x;
@@ -99,16 +103,38 @@ export default function AiTargetPreviewOverlay() {
           top: `${aiPreviewBox.y}px`,
           width: `${aiPreviewBox.width}px`,
           height: `${aiPreviewBox.height}px`,
+          cursor: isDragging ? 'grabbing' : 'move',
         }}
-        className={`absolute border-2 border-dashed rounded-2xl transition-all duration-200 pointer-events-auto cursor-grab active:cursor-grabbing flex flex-col justify-between p-3.5 group ${
+        className={`absolute border-2 border-dashed rounded-2xl transition-all duration-200 pointer-events-auto flex flex-col justify-between p-3.5 group relative overflow-visible ${
           isDark 
             ? 'border-indigo-400/85 bg-indigo-500/[0.08] shadow-[0_0_25px_rgba(99,102,241,0.2)]' 
             : 'border-indigo-500/85 bg-indigo-50/[0.3] shadow-[0_0_25px_rgba(99,102,241,0.14)]'
         }`}
         onPointerDown={handlePointerDown}
+        onPointerEnter={(e) => {
+          const rect = e.currentTarget.getBoundingClientRect();
+          setCursorPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+        }}
         onPointerMove={handlePointerMove}
+        onPointerLeave={() => {
+          setCursorPos(null);
+        }}
         onPointerUp={handlePointerUp}
       >
+        {/* Always-visible high-contrast cursor reticle follower inside AI sketch zone */}
+        {cursorPos && (
+          <div
+            className="absolute pointer-events-none z-30 -translate-x-1/2 -translate-y-1/2"
+            style={{ left: `${cursorPos.x}px`, top: `${cursorPos.y}px` }}
+          >
+            <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shadow-lg ${
+              isDark ? 'border-white bg-indigo-500/40 shadow-indigo-500/50' : 'border-indigo-600 bg-indigo-500/30 shadow-indigo-600/30'
+            }`}>
+              <div className={`w-2 h-2 rounded-full ${isDark ? 'bg-white shadow-xs' : 'bg-indigo-700'}`} />
+            </div>
+          </div>
+        )}
+
         {/* Top Header Tag inside the Box */}
         <div className="flex items-center justify-between w-full pointer-events-none">
           <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] font-bold tracking-tight shadow-xs backdrop-blur-md ${
@@ -149,16 +175,16 @@ export default function AiTargetPreviewOverlay() {
         </div>
 
         {/* Crisp professional corner anchors matching canvas theme */}
-        <div className={`absolute -top-1.5 -left-1.5 w-3.5 h-3.5 rounded-full border-2 shadow-xs ${
+        <div className={`absolute -top-1.5 -left-1.5 w-3.5 h-3.5 rounded-full border-2 shadow-xs pointer-events-none ${
           isDark ? 'bg-gray-900 border-indigo-400' : 'bg-white border-indigo-600'
         }`} />
-        <div className={`absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full border-2 shadow-xs ${
+        <div className={`absolute -top-1.5 -right-1.5 w-3.5 h-3.5 rounded-full border-2 shadow-xs pointer-events-none ${
           isDark ? 'bg-gray-900 border-indigo-400' : 'bg-white border-indigo-600'
         }`} />
-        <div className={`absolute -bottom-1.5 -left-1.5 w-3.5 h-3.5 rounded-full border-2 shadow-xs ${
+        <div className={`absolute -bottom-1.5 -left-1.5 w-3.5 h-3.5 rounded-full border-2 shadow-xs pointer-events-none ${
           isDark ? 'bg-gray-900 border-indigo-400' : 'bg-white border-indigo-600'
         }`} />
-        <div className={`absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 rounded-full border-2 shadow-xs ${
+        <div className={`absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 rounded-full border-2 shadow-xs pointer-events-none ${
           isDark ? 'bg-gray-900 border-indigo-400' : 'bg-white border-indigo-600'
         }`} />
       </div>

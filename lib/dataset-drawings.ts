@@ -450,7 +450,7 @@ export const DATASET_DRAWINGS: DatasetDrawing[] = [
   {
     id: 'stick_figure',
     name: 'Stick Figure',
-    keywords: ['stick figure', 'person', 'human', 'man', 'standing person'],
+    keywords: ['stick figure', 'stickman', 'stick person', 'stick human'],
     description: 'Stick figure with head, body, arms waving, and legs',
     viewBox: { width: 60, height: 90 },
     svgParts: [
@@ -458,6 +458,202 @@ export const DATASET_DRAWINGS: DatasetDrawing[] = [
       'M 30 28 V 56',
       'M 12 36 L 30 38 L 48 36',
       'M 30 56 L 16 84 M 30 56 L 44 84'
+    ]
+  },
+  {
+    id: 'boy',
+    name: 'Boy',
+    keywords: ['boy', 'boys', 'kid', 'schoolboy', 'son', 'young boy', 'little boy', 'lad', 'male child'],
+    description: 'Young boy with styled cap, detailed friendly face, t-shirt, shorts, and sneakers',
+    viewBox: { width: 100, height: 140 },
+    svgParts: [
+      // Cap brim and crown
+      'M 32 30 C 35 24 65 24 68 30 L 78 30 C 80 30 80 34 76 34 L 66 34',
+      'M 32 30 C 32 16 68 16 68 30',
+      // Face profile, bangs & ears
+      'M 34 30 C 34 50 66 50 66 30',
+      'M 36 30 Q 40 36 45 30 Q 50 36 55 30 Q 60 36 64 30',
+      'M 33 34 A 4 4 0 0 0 33 42 M 67 34 A 4 4 0 0 1 67 42',
+      // Eyes and smile
+      'M 42 36 A 2.2 2.2 0 1 1 42 36.1 M 58 36 A 2.2 2.2 0 1 1 58 36.1',
+      'M 44 43 Q 50 48 56 43',
+      // Neck and T-shirt
+      'M 46 50 L 46 55 M 54 50 L 54 55',
+      'M 45 55 Q 50 58 55 55 L 70 60 L 66 74 L 60 72 L 60 92 L 40 92 L 40 72 L 34 74 L 30 60 Z',
+      'M 31 71 L 28 82 M 69 71 L 72 82',
+      // Shorts
+      'M 40 92 L 60 92 L 62 108 L 51 108 L 50 98 L 49 108 L 38 108 Z',
+      // Legs & Shoes
+      'M 43 108 L 43 124 M 47 108 L 47 124',
+      'M 53 108 L 53 124 M 57 108 L 57 124',
+      'M 38 124 H 49 C 50 124 50 130 46 130 H 36 C 34 130 34 124 38 124 Z',
+      'M 51 124 H 62 C 66 124 66 130 64 130 H 54 C 50 130 50 124 51 124 Z'
+    ]
+  },
+  {
+    id: 'girl',
+    name: 'Girl',
+    keywords: ['girl', 'girls', 'daughter', 'schoolgirl', 'little girl', 'female child', 'lass'],
+    description: 'Young girl with sweet pigtails, ribbons, smiling face, lovely dress, and shoes',
+    viewBox: { width: 100, height: 140 },
+    svgParts: [
+      // Face profile & bangs
+      'M 35 32 C 35 52 65 52 65 32',
+      'M 33 32 C 33 16 67 16 67 32 M 35 32 Q 42 38 50 32 Q 58 38 65 32',
+      // Pigtails & Ribbons
+      'M 34 26 C 22 24 16 38 24 50 C 28 44 32 36 34 32 M 66 26 C 78 24 84 38 76 50 C 72 44 68 36 66 32',
+      'M 33 26 A 3 3 0 1 1 33 26.1 M 67 26 A 3 3 0 1 1 67 26.1',
+      // Eyes, eyelashes, and smile
+      'M 42 38 A 2.2 2.2 0 1 1 42 38.1 M 58 38 A 2.2 2.2 0 1 1 58 38.1',
+      'M 40 36 L 38 34 M 60 36 L 62 34',
+      'M 44 44 Q 50 49 56 44',
+      // Neck, Dress & Belt
+      'M 46 51 V 56 M 54 51 V 56',
+      'M 44 56 Q 50 59 56 56 L 66 64 L 62 72 L 58 70 L 72 102 L 28 102 L 42 70 L 38 72 L 34 64 Z',
+      'M 42 72 H 58',
+      'M 36 68 L 28 82 M 64 68 L 72 82',
+      // Legs & Shoes
+      'M 43 102 V 124 M 47 102 V 124',
+      'M 53 102 V 124 M 57 102 V 124',
+      'M 38 124 H 49 C 50 124 50 130 46 130 H 36 C 34 130 34 124 38 124 Z',
+      'M 51 124 H 62 C 66 124 66 130 64 130 H 54 C 50 130 50 124 51 124 Z'
+    ]
+  },
+  {
+    id: 'man',
+    name: 'Man',
+    keywords: ['man', 'men', 'gentleman', 'father', 'guy', 'male adult', 'dad'],
+    description: 'Adult gentleman with parted hair, collared shirt with necktie, trousers, and shoes',
+    viewBox: { width: 100, height: 150 },
+    svgParts: [
+      'M 36 34 C 36 54 64 54 64 34 M 35 34 C 34 20 66 20 65 34 M 34 25 C 38 18 56 16 66 22',
+      'M 42 38 A 2 2 0 1 1 42 38.1 M 58 38 A 2 2 0 1 1 58 38.1 M 40 34 H 45 M 55 34 H 60 M 45 44 Q 50 48 55 44',
+      'M 45 54 L 50 62 L 55 54 M 50 62 L 48 78 L 50 82 L 52 78 Z M 45 54 L 30 62 L 33 76 L 38 74 L 38 96 L 62 96 L 62 74 L 67 76 L 70 62 L 55 54',
+      'M 38 96 L 62 96 L 64 132 L 53 132 L 50 106 L 47 132 L 36 132 Z',
+      'M 34 132 H 47 V 138 H 32 Z M 53 132 H 66 V 138 H 51 Z'
+    ]
+  },
+  {
+    id: 'woman',
+    name: 'Woman',
+    keywords: ['woman', 'women', 'lady', 'mother', 'female adult', 'mom'],
+    description: 'Adult woman with flowing hair, stylish outfit, skirt, and heels',
+    viewBox: { width: 100, height: 150 },
+    svgParts: [
+      'M 36 34 C 36 52 64 52 64 34 M 36 34 C 32 18 68 18 64 34 M 34 30 C 26 40 24 68 34 76 M 66 30 C 74 40 76 68 66 76',
+      'M 42 38 A 2 2 0 1 1 42 38.1 M 58 38 A 2 2 0 1 1 58 38.1 M 44 44 Q 50 48 56 44',
+      'M 44 54 Q 50 58 56 54 L 66 64 L 62 74 L 58 72 L 70 110 L 30 110 L 42 72 L 38 74 L 34 64 Z M 40 74 H 60',
+      'M 44 110 V 132 M 48 110 V 132 M 52 110 V 132 M 56 110 V 132 M 39 132 H 49 L 45 138 H 40 Z M 51 132 H 61 L 57 138 H 52 Z'
+    ]
+  },
+  {
+    id: 'person',
+    name: 'Person',
+    keywords: ['person', 'human', 'character', 'someone', 'somebody', 'standing person'],
+    description: 'Complete person standing upright with casual outfit and friendly expression',
+    viewBox: { width: 100, height: 140 },
+    svgParts: [
+      'M 50 14 A 14 14 0 1 0 50 42 A 14 14 0 1 0 50 14 Z',
+      'M 44 26 A 2 2 0 1 1 44 26.1 M 56 26 A 2 2 0 1 1 56 26.1 M 46 34 Q 50 38 54 34',
+      'M 46 42 V 48 M 54 42 V 48',
+      'M 44 48 H 56 L 68 54 L 64 68 L 58 66 L 58 90 L 42 90 L 42 66 L 36 68 L 32 54 Z',
+      'M 42 90 L 58 90 L 60 120 L 52 120 L 50 98 L 48 120 L 40 120 Z',
+      'M 38 120 H 49 V 126 H 36 Z M 51 120 H 62 V 126 H 49 Z'
+    ]
+  },
+  {
+    id: 'face',
+    name: 'Human Face',
+    keywords: ['face', 'portrait', 'head', 'human face', 'person face', 'smile face'],
+    description: 'Detailed human face portrait with styled hair, eyes, eyebrows, nose, and smiling mouth',
+    viewBox: { width: 100, height: 100 },
+    svgParts: [
+      'M 25 35 C 25 15 75 15 75 35 C 75 65 65 85 50 88 C 35 85 25 65 25 35 Z',
+      'M 25 35 C 25 10 75 10 75 35 C 70 24 60 22 50 25 C 40 22 30 24 25 35 Z',
+      'M 24 40 A 5 7 0 0 0 24 54 M 76 40 A 5 7 0 0 1 76 54',
+      'M 34 42 Q 40 37 46 42 Q 40 47 34 42 Z M 40 42 A 2 2 0 1 1 40 42.1',
+      'M 54 42 Q 60 37 66 42 Q 60 47 54 42 Z M 60 42 A 2 2 0 1 1 60 42.1',
+      'M 33 37 Q 40 33 46 36 M 54 36 Q 60 33 67 37',
+      'M 50 44 V 58 L 46 60 H 52',
+      'M 40 68 Q 50 78 60 68 Q 50 72 40 68 Z'
+    ]
+  },
+  {
+    id: 'robot',
+    name: 'Robot',
+    keywords: ['robot', 'android', 'cyborg', 'bot', 'mech'],
+    description: 'Retro mechanical robot with antenna, visor eyes, body dials, and clamp hands',
+    viewBox: { width: 100, height: 130 },
+    svgParts: [
+      'M 50 12 A 4 4 0 1 1 50 12.1 M 50 16 V 26',
+      'M 32 26 H 68 V 50 H 32 Z M 28 34 H 32 M 68 34 H 72',
+      'M 40 36 A 3 3 0 1 1 40 36.1 M 60 36 A 3 3 0 1 1 60 36.1 M 39 44 H 61',
+      'M 45 50 H 55 V 55 H 45 Z M 26 55 H 74 V 92 H 26 Z M 36 65 H 64 V 82 H 36 Z M 42 74 A 3 3 0 1 1 42 74.1 M 50 74 A 3 3 0 1 1 50 74.1 M 58 74 A 3 3 0 1 1 58 74.1',
+      'M 26 62 H 16 V 80 H 22 M 16 80 L 12 84 M 16 80 L 20 84 M 74 62 H 84 V 80 H 78 M 84 80 L 80 84 M 84 80 L 88 84',
+      'M 38 92 V 110 M 44 92 V 110 M 56 92 V 110 M 62 92 V 110 M 32 110 H 48 V 116 H 32 Z M 52 110 H 68 V 116 H 52 Z'
+    ]
+  },
+  {
+    id: 'soccer_ball',
+    name: 'Soccer Ball',
+    keywords: ['soccer', 'soccer ball', 'football', 'ball', 'sports ball'],
+    description: 'Classic soccer ball with pentagon and hexagon panel seams',
+    viewBox: { width: 80, height: 80 },
+    svgParts: [
+      'M 40 5 A 35 35 0 1 0 40 75 A 35 35 0 1 0 40 5 Z',
+      'M 40 28 L 50 35 L 46 47 L 34 47 L 30 35 Z',
+      'M 40 28 L 40 10 M 50 35 L 68 28 M 46 47 L 62 60 M 34 47 L 18 60 M 30 35 L 12 28',
+      'M 40 10 L 25 15 M 40 10 L 55 15 M 68 28 L 74 44 M 62 60 L 52 73 M 18 60 L 28 73 M 12 28 L 6 44'
+    ]
+  },
+  {
+    id: 'guitar',
+    name: 'Guitar',
+    keywords: ['guitar', 'acoustic guitar', 'electric guitar', 'music', 'instrument'],
+    description: 'Acoustic guitar with wooden body, sound hole, fretboard, and tuning pegs',
+    viewBox: { width: 80, height: 140 },
+    svgParts: [
+      'M 30 70 C 15 75 10 90 15 105 C 20 125 60 125 65 105 C 70 90 65 75 50 70 C 45 68 35 68 30 70 Z',
+      'M 30 70 C 25 65 25 55 32 50 C 37 46 43 46 48 50 C 55 55 55 65 50 70',
+      'M 40 68 A 6 6 0 1 0 40 68.1 Z M 32 102 H 48 V 106 H 32 Z',
+      'M 37 48 V 18 H 43 V 48 M 35 18 H 45 V 6 H 35 Z M 33 10 H 35 M 33 14 H 35 M 45 10 H 47 M 45 14 H 47',
+      'M 39 8 V 102 M 41 8 V 102'
+    ]
+  },
+  {
+    id: 'castle',
+    name: 'Castle',
+    keywords: ['castle', 'fortress', 'palace', 'tower', 'kingdom'],
+    description: 'Medieval castle with twin towers, battlements, arched gateway, and flags',
+    viewBox: { width: 120, height: 100 },
+    svgParts: [
+      'M 35 50 H 85 V 90 H 35 Z M 50 90 V 70 C 50 62 70 62 70 70 V 90 M 50 70 H 70 M 60 64 V 90',
+      'M 35 50 V 42 H 42 V 46 H 48 V 42 H 54 V 46 H 66 V 42 H 72 V 46 H 78 V 42 H 85 V 50',
+      'M 15 90 V 32 H 35 V 90 M 10 32 H 40 V 22 H 36 V 26 H 30 V 22 H 24 V 26 H 20 V 22 H 10 Z M 25 22 L 25 10 L 15 14 L 25 18 M 22 45 H 28 V 56 H 22 Z',
+      'M 85 90 V 32 H 105 V 90 M 80 32 H 110 V 22 H 106 V 26 H 100 V 22 H 94 V 26 H 90 V 22 H 80 Z M 95 22 L 95 10 L 85 14 L 95 18 M 92 45 H 98 V 56 H 92 Z'
+    ]
+  },
+  {
+    id: 'rainbow',
+    name: 'Rainbow',
+    keywords: ['rainbow', 'rainbows', 'sky arc', 'colors'],
+    description: 'Vibrant concentric rainbow arcs emerging from fluffy cloud cushions',
+    viewBox: { width: 120, height: 75 },
+    svgParts: [
+      'M 20 65 A 40 40 0 0 1 100 65 M 25 65 A 35 35 0 0 1 95 65 M 30 65 A 30 30 0 0 1 90 65 M 35 65 A 25 25 0 0 1 85 65 M 40 65 A 20 20 0 0 1 80 65',
+      'M 10 65 A 10 10 0 0 1 28 65 H 10 Z M 16 57 A 8 8 0 0 1 26 57',
+      'M 92 65 A 10 10 0 0 1 110 65 H 92 Z M 98 57 A 8 8 0 0 1 108 57'
+    ]
+  },
+  {
+    id: 'mountain',
+    name: 'Mountain',
+    keywords: ['mountain', 'mountains', 'peak', 'landscape', 'hills'],
+    description: 'Majestic mountain twin peaks with snow caps',
+    viewBox: { width: 120, height: 80 },
+    svgParts: [
+      'M 5 75 L 45 15 L 85 75 Z M 45 15 L 35 32 L 45 28 L 52 35 L 45 15',
+      'M 55 75 L 85 28 L 115 75 Z M 85 28 L 78 40 L 85 36 L 92 42 L 85 28'
     ]
   },
   {
@@ -488,11 +684,11 @@ export const DATASET_DRAWINGS: DatasetDrawing[] = [
 ];
 
 // Normalize prompt string and find matching dataset item
-export function findDatasetDrawing(promptText: string): DatasetDrawing | null {
-  if (!promptText) return null;
+export function findDatasetDrawing(promptText: string, fallbackContext?: string): DatasetDrawing | null {
+  if (!promptText && !fallbackContext) return null;
 
   // Clean prompt
-  let clean = promptText
+  let clean = (promptText || '')
     .toLowerCase()
     .replace(/[^\w\s]/g, ' ')
     .trim();
@@ -500,9 +696,12 @@ export function findDatasetDrawing(promptText: string): DatasetDrawing | null {
   // Strip common command words and conversational filler
   const stopWords = [
     'draw', 'drawing', 'sketch', 'paint', 'painting', 'make', 'create', 'please', 
-    'can', 'you', 'a', 'an', 'the', 'simple', 'cute', 'nice', 'cool', 'good', 
+    'can', 'cant', 'could', 'would', 'you', 'u', 'a', 'an', 'the', 'simple', 'cute', 'nice', 'cool', 'good', 
     'pretty', 'generate', 'outline', 'me', 'some', 'quick', 'fast', 'little', 
-    'beautiful', 'vector', 'svg', 'inside', 'box', 'frame', 'here', 'with', 'for'
+    'beautiful', 'vector', 'svg', 'inside', 'box', 'frame', 'here', 'with', 'for',
+    'on', 'in', 'at', 'another', 'other', 'side', 'next', 'beside', 'more', 'one',
+    'it', 'them', 'right', 'left', 'top', 'bottom', 'again', 'there', 'too', 'and', 'all',
+    'now', 'just', 'like', 'how', 'what', 'why', 'to', 'do'
   ];
 
   const words = clean.split(/\s+/).filter(w => w.length > 0 && !stopWords.includes(w));
@@ -525,6 +724,14 @@ export function findDatasetDrawing(promptText: string): DatasetDrawing | null {
       if (item.keywords.some(kw => kw === word || (word.length >= 3 && kw.includes(word)))) {
         return item;
       }
+    }
+  }
+
+  // 3. Fallback to conversational memory context if prompt was purely relational (e.g. "draw on another side")
+  if (fallbackContext && fallbackContext !== promptText) {
+    const fallbackMatch = findDatasetDrawing(fallbackContext);
+    if (fallbackMatch) {
+      return fallbackMatch;
     }
   }
 
