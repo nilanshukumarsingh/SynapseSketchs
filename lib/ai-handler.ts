@@ -1,4 +1,5 @@
 import { useStore, Stroke } from './store';
+import { findDatasetDrawing, DATASET_DRAWINGS } from './dataset-drawings';
 
 // Sound helper
 export const playSound = (frequency: number, type: OscillatorType = 'sine', duration: number = 0.1) => {
@@ -91,7 +92,86 @@ export async function handleGenerateBg(prompt: string, onGeneratingStateChange?:
   }
 }
 
-export async function handleAiAction(promptText?: string, onGeneratingStateChange?: (state: boolean) => void) {
+export function prepareAiTargetPreview(promptText?: string) {
+  const { strokes, offset, scale, setAiPreviewBox } = useStore.getState();
+  
+  let latestHumanStrokes: Stroke[] = [];
+  for (let i = strokes.length - 1; i >= 0; i--) {
+    const s = strokes[i];
+    if (s.createdByAI) break;
+    if (!s.createdByAI && s.tool !== 'text' && s.points.length > 0) {
+      latestHumanStrokes.unshift(s);
+    }
+  }
+
+  const canvas = document.querySelector('canvas');
+  const canvasW = canvas ? canvas.width : window.innerWidth;
+  const canvasH = canvas ? canvas.height : window.innerHeight;
+
+  let boxX = 0, boxY = 0, boxW = 340, boxH = 240;
+
+  if (latestHumanStrokes.length > 0) {
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    latestHumanStrokes.forEach(s => {
+      s.points.forEach(p => {
+        if (p.x !== -9999 && p.y !== -9999) {
+          if (p.x < minX) minX = p.x;
+          if (p.x > maxX) maxX = p.x;
+          if (p.y < minY) minY = p.y;
+          if (p.y > maxY) maxY = p.y;
+        }
+      });
+    });
+
+    if (minX !== Infinity) {
+      const s = scale || 1;
+      const pMinX = minX * s + offset.x;
+      const pMaxX = maxX * s + offset.x;
+      const pMinY = minY * s + offset.y;
+      const pMaxY = maxY * s + offset.y;
+      boxW = Math.max(160, Math.round(pMaxX - pMinX + 40));
+      boxH = Math.max(140, Math.round(pMaxY - pMinY + 40));
+      boxX = Math.round(pMinX - 20);
+      boxY = Math.round(pMinY - 20);
+
+      // Safe viewport clamping so preview frame is never hidden behind top/bottom toolbars
+      const safeTop = 110;
+      const safeBottom = canvasH - boxH - 110;
+      boxY = Math.max(safeTop, Math.min(Math.max(safeTop, safeBottom), boxY));
+      const safeLeft = 30;
+      const safeRight = canvasW - boxW - 30;
+      boxX = Math.max(safeLeft, Math.min(Math.max(safeLeft, safeRight), boxX));
+    }
+  } else {
+    // Center open space comfortably in visible canvas
+    boxW = 340;
+    boxH = 240;
+    boxX = Math.round(canvasW / 2 - boxW / 2);
+    boxY = Math.round(Math.max(120, canvasH / 2 - boxH / 2));
+  }
+
+  setAiPreviewBox({
+    x: boxX,
+    y: boxY,
+    width: boxW,
+    height: boxH,
+    prompt: promptText || 'Complete drawing / AI embellishment'
+  });
+}
+
+export interface TargetBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  prompt?: string;
+}
+
+export async function handleAiAction(
+  promptText?: string, 
+  onGeneratingStateChange?: (state: boolean) => void,
+  targetBox?: TargetBox
+) {
   const canvas = document.querySelector('canvas');
   if (!canvas) return;
 
@@ -114,12 +194,14 @@ export async function handleAiAction(promptText?: string, onGeneratingStateChang
     finalPrompt = "Clean up the drawing. Remove messy lines or scribbles by drawing over them with background colors.";
   }
 
-  // Extract conversational context from previous AI prompt histories stored in strokes memory
+  // Extract conversational & object memory so the AI permanently remembers what has been drawn on canvas!
   let conversationHistory = "";
-  const recentStrokes = strokes.slice(-20);
-  const aiMemory = recentStrokes.filter(s => s.tool === 'text' && s.text?.startsWith('USER:'));
-  if (aiMemory.length > 0) {
-      conversationHistory = "\nRECENT CONVERSATION HISTORY (Remember previous actions!):\n" + aiMemory.slice(-3).map(s => `- ${s.text}`).join('\n');
+  const storeAiMemory = useStore.getState().aiMemory || [];
+  if (storeAiMemory.length > 0) {
+    conversationHistory = "\nOBJECT MEMORY OF PREVIOUSLY DRAWN ITEMS (You MUST remember these objects and their exact canvas locations!):\n" + 
+      storeAiMemory.slice(-6).map((m, idx) => 
+        `${idx + 1}. Previously drew a "${m.recognizedObject}" at X: [${Math.round(m.box.x)} to ${Math.round(m.box.x + m.box.width)}], Y: [${Math.round(m.box.y)} to ${Math.round(m.box.y + m.box.height)}] for prompt: "${m.prompt}".`
+      ).join('\n');
   }
 
   // Smart contiguous user drawing segment tracking (e.g. tracking tree vs car)
@@ -138,7 +220,27 @@ export async function handleAiAction(promptText?: string, onGeneratingStateChang
   let pMinX = 0, pMaxX = 0, pMinY = 0, pMaxY = 0;
   let hasLatestHumanBbox = false;
 
-  if (latestHumanStrokes.length > 0) {
+  if (targetBox) {
+    // Exact user-confirmed target bounding box from visual overlay
+    pMinX = targetBox.x;
+    pMaxX = targetBox.x + targetBox.width;
+    pMinY = targetBox.y;
+    pMaxY = targetBox.y + targetBox.height;
+    hasLatestHumanBbox = true;
+
+    const w = Math.round(targetBox.width);
+    const h = Math.round(targetBox.height);
+
+    recentStrokeInfo = `
+CRITICAL USER-CONFIRMED TARGET BOUNDING BOX:
+- The user has explicitly confirmed the target drawing location on screen!
+- TARGET BOUNDING BOX: X: [${Math.round(pMinX)} to ${Math.round(pMaxX)}] (Width: ${w}) and Y: [${Math.round(pMinY)} to ${Math.round(pMaxY)}] (Height: ${h}).
+- YOU MUST DRAW YOUR ARTWORK STRICTLY INSIDE THIS TARGET BOX!
+- Set your shape coordinates: "x": ${Math.round(pMinX)}, "y": ${Math.round(pMinY)}, "width": ${w}, "height": ${h}.
+- DO NOT draw in any other area of the canvas or relocate to another side!
+- PRESERVATION MANDATE: There may be other drawings already on the canvas outside this box. You are strictly FORBIDDEN from modifying or drawing over them. Focus exclusively inside the confirmed box.
+`;
+  } else if (latestHumanStrokes.length > 0) {
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     latestHumanStrokes.forEach(s => {
       s.points.forEach(p => {
@@ -265,7 +367,7 @@ GOAL: Cleanly and beautifully draw, correct, or enhance the sketches on the canv
 
 DIRECTIONS:
 1. RECOGNITION & PLAN: Detail your observations in "thoughts". What did the user draw? What do they want? State your precise strategy, locating the bounding boxes.
-2. COMPOSITIONAL INTELLIGENCE: For complex structured objects (bicycles, cars, buildings), you SHOULD COMPUTE the object out of multiple layered geometric primitives! For example, a bike is easily drawn as two mathematically perfect circles for wheels, followed by several thick lines connecting the axles to form the frame, and paths for the handlebar and seat. This uses spatial awareness and produces much more accurate objects than trying to hallucinate a single intricate SVG path.
+2. SINGLE OBJECT RULE: When the user asks to draw a requested single object (like a car, bike, house, flower, dog, cat, etc.), generate EXACTLY ONE stroke object in the 'strokes' array! DO NOT repeat the stroke object multiple times, do NOT draw 3 cars or duplicate shapes!
 3. IN-PLACE COMPLETION vs NEW OBJECTS:
    - If a CRITICAL BOUNDED WORKSPACE LIMITS box is provided (the user drew a messy hand sketch), scale and align your shapes inside that box and prepend an eraser stroke ('tool': "eraser", 'shapeType': "rectangle") FIRST to wipe their messy lines.
    - If NO bounded workspace limits are provided (user typed a text command like "draw a bike to go with your car"), DO NOT use an eraser stroke! Do NOT overwrite or erase existing artwork! Instead, specify explicit "x" and "y" coordinates to place the new object in open space next to existing drawings!
@@ -310,7 +412,7 @@ DIRECTIONS:
      * Cat: "M320 192l17.1 0c22.1 38.3 63.5 64 110.9 64c11 0 21.8-1.4 32-4l0 4 0 32 0 192c0 17.7-14.3 32-32 32s-32-14.3-32-32l0-140.8L280 448l56 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-144 0c-53 0-96-43-96-96l0-223.5c0-16.1-12-29.8-28-31.8l-7.9-1c-17.5-2.2-30-18.2-27.8-35.7s18.2-30 35.7-27.8l7.9 1c48 6 84.1 46.8 84.1 95.3l0 85.3c34.4-51.7 93.2-85.8 160-85.8zm160 26.5s0 0 0 0c-10 3.5-20.8 5.5-32 5.5c-28.4 0-54-12.4-71.6-32c0 0 0 0 0 0c-3.7-4.1-7-8.5-9.9-13.2C357.3 164 352 146.6 352 128c0 0 0 0 0 0l0-96 0-20 0-1.3C352 4.8 356.7 .1 362.6 0l.2 0c3.3 0 6.4 1.6 8.4 4.2c0 0 0 0 0 .1L384 21.3l27.2 36.3L416 64l64 0 4.8-6.4L512 21.3 524.8 4.3c0 0 0 0 0-.1c2-2.6 5.1-4.2 8.4-4.2l.2 0C539.3 .1 544 4.8 544 10.7l0 1.3 0 20 0 96c0 17.3-4.6 33.6-12.6 47.6c-11.3 19.8-29.6 35.2-51.4 42.9zM432 128a16 16 0 1 0 -32 0 16 16 0 1 0 32 0zm48 16a16 16 0 1 0 0-32 16 16 0 1 0 0 32z"
      * Boy: "M50,10 A15,15 0 1,0 50,40 A15,15 0 1,0 50,10 Z M50,40 L50,60 M30,45 L70,45 L70,60 L30,60 Z M50,60 L35,95 M50,60 L65,95 M35,10 C 40,5 60,5 65,10 C 60,15 40,15 35,10 Z"
      * Girl: "M50,15 A12,12 0 1,0 50,39 A12,12 0 1,0 50,15 Z M50,39 L50,48 M40,48 L60,48 L75,70 L25,70 Z M45,70 L45,95 M55,70 L55,95 M38,15 Q25,25 35,39 M62,15 Q75,25 65,39"
-     * Car / Automobile / Vehicle / Van: "M20,60 L32,30 L68,30 L80,60 L95,60 C98,60 100,62 100,65 L100,75 C100,78 98,80 95,80 L88,80 A10,10 0 1,1 68,80 L32,80 A10,10 0 1,1 12,80 L5,80 C2,80 0,78 0,75 L0,65 C0,62 2,60 5,60 Z M35,35 L28,55 L47,55 L47,35 Z M52,35 L52,55 L72,55 L65,35 Z M14,80 a 7 7 0 1 0 14 0 a 7 7 0 1 0 -14 0 M 70,80 a 7 7 0 1 0 14 0 a 7 7 0 1 0 -14 0"
+     * Car / Automobile / Vehicle / Van: "M 10 52 C 7 52 4 54 4 57 L 4 60 C 4 62 6 63 10 63 L 18 63 A 14 14 0 0 1 46 63 L 96 63 A 14 14 0 0 1 124 63 L 138 63 C 142 63 145 61 145 57 L 145 50 C 145 46 142 45 137 45 L 122 45 L 102 23 C 100 21 96 20 90 20 L 52 20 C 47 20 44 22 42 26 L 27 45 L 14 48 C 11 49 10 50 10 52 Z M 45 24 L 30 44 L 68 44 L 68 24 Z M 73 24 L 73 44 L 116 44 L 98 24 Z M 20 63 a 12 12 0 1 0 24 0 a 12 12 0 1 0 -24 0 M 26 63 a 6 6 0 1 0 12 0 a 6 6 0 1 0 -12 0 M 98 63 a 12 12 0 1 0 24 0 a 12 12 0 1 0 -24 0 M 104 63 a 6 6 0 1 0 12 0 a 6 6 0 1 0 -12 0 M 7 51 L 18 50 L 17 56 L 6 55 Z M 139 47 L 144 48 L 144 54 L 139 53 Z M 70 24 L 70 63 M 76 48 H 86 M 41 42 C 37 39 35 41 35 45 C 35 47 38 47 41 45 Z"
      * Credit Card: "M 5 20 C 2 20 0 22 0 25 L 0 75 C 0 78 2 80 5 80 L 95 80 C 98 80 100 78 100 75 L 100 25 C 100 22 98 20 95 20 L 5 20 Z M 0 35 L 100 35 L 100 45 L 0 45 Z M 10 55 L 30 55 L 30 65 L 10 65 Z"
    - circle: use shapeType="circle", provide "cx", "cy", "r".
    - rectangle: use shapeType="rectangle", provide "x", "y", "width", "height".
@@ -369,48 +471,121 @@ DIRECTIONS:
 
     let data: any = null;
 
-    try {
-      const response = await fetch('/api/generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          prompt: promptText || null,
-          systemPrompt,
-          schemaObj,
-          image: base64Data,
-          settings,
-        }),
-      });
+    // 1. DATASET VOCABULARY & OBJECT MEMORY ENGINE:
+    // Check if the prompt requests a known object from our high-precision vector dataset dictionary
+    const matchedDataset = promptText ? findDatasetDrawing(promptText) : null;
+    if (matchedDataset) {
+      // Calculate precise target placement coordinates
+      let dW = targetBox ? targetBox.width : (hasLatestHumanBbox ? Math.max(160, pMaxX - pMinX) : 340);
+      let dH = targetBox ? targetBox.height : (hasLatestHumanBbox ? Math.max(140, pMaxY - pMinY) : 240);
+      let dX = targetBox ? targetBox.x : (hasLatestHumanBbox ? pMinX : Math.round(canvas.width / 2 - dW / 2));
+      let dY = targetBox ? targetBox.y : (hasLatestHumanBbox ? pMinY : Math.round(Math.max(120, canvas.height / 2 - dH / 2)));
 
-      const rawText = await response.text();
-      try {
-        data = JSON.parse(rawText);
-      } catch {}
-
-      if (!response.ok) {
-        let msg = data?.error || data?.message;
-        if (!msg) {
-          if (rawText.includes('Rate exceeded') || response.status === 429) {
-            msg = "Gemini service is experiencing high demand / rate limits. Please wait a few seconds and try again!";
-          } else {
-            msg = rawText && rawText.length < 200 ? rawText : "AI Generation Request failed.";
-          }
+      // If no box was selected and existing artwork is present, place adjacent in open canvas space
+      if (!targetBox && !hasLatestHumanBbox && globalMinX !== Infinity) {
+        const s = scale || 1;
+        const gMaxX = Math.round(globalMaxX * s + offset.x);
+        const gMinY = Math.round(globalMinY * s + offset.y);
+        if (gMaxX + dW + 40 < canvas.width) {
+          dX = gMaxX + 40;
+          dY = Math.max(120, gMinY);
         }
-        throw new Error(msg);
       }
 
-      if (!data) {
-        throw new Error("Invalid response from AI server.");
-      }
+      // Safe viewport clamping: drawing is always safely below top floating bar & above bottom controls
+      const safeTop = 110;
+      const safeBottom = Math.max(safeTop, canvas.height - dH - 110);
+      dY = Math.max(safeTop, Math.min(safeBottom, dY));
+      dX = Math.max(30, Math.min(Math.max(30, canvas.width - dW - 30), dX));
 
-      if (data.tokensUsed) {
-        addTokens(data.tokensUsed);
+      // Combine all subpaths into a unified drawing path to preserve relative coordinates & scale
+      const combinedSvgPath = matchedDataset.svgParts.join(' ');
+
+      data = {
+        action: 'draw',
+        topMessage: `✨ Drawing authentic ${matchedDataset.name}!`,
+        thoughts: `Recognized '${matchedDataset.name}' in dataset vocabulary. Synthesizing authentic multi-stroke vector geometry inside frame [X: ${dX}, Y: ${dY}, W: ${dW}, H: ${dH}].`,
+        strokes: [
+          {
+            tool: currentTool === 'ai-colorize' ? 'ai-colorize' : 'pencil',
+            color: currentColor || (theme === 'dark' ? '#f8fafc' : '#1e293b'),
+            size: currentSize || 'medium',
+            shapeType: 'svg',
+            svgPath: combinedSvgPath,
+            fill: false,
+            x: dX,
+            y: dY,
+            width: dW,
+            height: dH,
+          }
+        ]
+      };
+
+      // Save to persistent AI object memory so subsequent actions remember this object!
+      useStore.getState().addAiMemory({
+        prompt: promptText || matchedDataset.name,
+        recognizedObject: matchedDataset.name,
+        box: { x: dX, y: dY, width: dW, height: dH },
+        timestamp: Date.now()
+      });
+    } else {
+      try {
+        const response = await fetch('/api/generate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            prompt: promptText || null,
+            systemPrompt,
+            schemaObj,
+            image: base64Data,
+            settings,
+          }),
+        });
+
+        const rawText = await response.text();
+        try {
+          data = JSON.parse(rawText);
+        } catch {}
+
+        if (!response.ok) {
+          let msg = data?.error || data?.message;
+          if (!msg) {
+            if (rawText.includes('Rate exceeded') || response.status === 429) {
+              msg = "Gemini service is experiencing high demand / rate limits. Please wait a few seconds and try again!";
+            } else {
+              msg = rawText && rawText.length < 200 ? rawText : "AI Generation Request failed.";
+            }
+          }
+          throw new Error(msg);
+        }
+
+        if (!data) {
+          throw new Error("Invalid response from AI server.");
+        }
+
+        if (data.tokensUsed) {
+          addTokens(data.tokensUsed);
+        }
+
+        // Register in AI object memory for future context
+        const detectedName = promptText ? promptText.slice(0, 30) : "Artwork";
+        useStore.getState().addAiMemory({
+          prompt: promptText || "Sketch drawing",
+          recognizedObject: detectedName,
+          box: {
+            x: targetBox ? targetBox.x : (hasLatestHumanBbox ? pMinX : 0),
+            y: targetBox ? targetBox.y : (hasLatestHumanBbox ? pMinY : 0),
+            width: targetBox ? targetBox.width : (hasLatestHumanBbox ? pMaxX - pMinX : canvas.width),
+            height: targetBox ? targetBox.height : (hasLatestHumanBbox ? pMaxY - pMinY : canvas.height),
+          },
+          timestamp: Date.now()
+        });
+      } catch (e: any) {
+        console.error("AI proxy secure call error:", e);
+        throw e;
       }
-    } catch (e: any) {
-      console.error("AI proxy secure call error:", e);
-      throw e;
     }
 
     if (data && data.topMessage) setTopMessage(data.topMessage);
@@ -424,6 +599,21 @@ DIRECTIONS:
               return;
           }
 
+          // Deduplicate SVG strokes if AI returned identical repeated copies (e.g. preventing 3 cars from rendering)
+          const seenSvgPaths = new Set<string>();
+          const filteredStrokes: any[] = [];
+          for (const str of data.strokes) {
+            if (str.shapeType === 'svg' && str.svgPath) {
+              const cleanKey = str.svgPath.trim().replace(/\s+/g, ' ');
+              if (seenSvgPaths.has(cleanKey)) {
+                continue; // Skip duplicate SVG path!
+              }
+              seenSvgPaths.add(cleanKey);
+            }
+            filteredStrokes.push(str);
+          }
+          data.strokes = filteredStrokes;
+
           if (hasLatestHumanBbox && data.strokes.length > 0) {
             useStore.setState((state) => {
               let newStrokes = state.strokes;
@@ -432,17 +622,17 @@ DIRECTIONS:
                 const targetIds = new Set(latestHumanStrokes.map(s => s.id));
                 newStrokes = newStrokes.filter(s => !targetIds.has(s.id));
               }
-              // If using ai-eraser, remove any strokes within the erase boundary
-              if (currentTool === 'ai-eraser') {
-                const margin = 15;
-                newStrokes = newStrokes.filter((s) => {
-                  const overlaps = s.points.some((pt) =>
-                    pt.x >= pMinX - margin && pt.x <= pMaxX + margin &&
-                    pt.y >= pMinY - margin && pt.y <= pMaxY + margin
-                  );
-                  return !overlaps;
-                });
-              }
+              // Cleanly erase any messy strokes/points inside the user's sketch bounding box
+              const margin = 20;
+              newStrokes = newStrokes.filter((s) => {
+                if (s.createdByAI) return true; // Keep previous pristine AI drawings outside box
+                const overlaps = s.points.some((pt) =>
+                  pt.x >= pMinX - margin && pt.x <= pMaxX + margin &&
+                  pt.y >= pMinY - margin && pt.y <= pMaxY + margin
+                );
+                return !overlaps;
+              });
+
               const newHistory = state.history.slice(0, state.historyStep + 1);
               newHistory.push(newStrokes);
               return {
@@ -524,47 +714,76 @@ DIRECTIONS:
             const visibleCenterX = Math.round(canvas.width / 2);
             const visibleCenterY = Math.round(canvas.height / 2);
 
-            const computeTargetX = (rawX: any, shapeW: number) => {
+            const computeTargetPos = (rawX: any, rawY: any, shapeW: number, shapeH: number) => {
               const numX = rawX != null ? Number(rawX) : NaN;
+              const numY = rawY != null ? Number(rawY) : NaN;
+
+              if (targetBox) {
+                // Strictly lock to user-confirmed target bounding box - never relocate
+                return { x: Math.round(targetBox.x), y: Math.round(targetBox.y) };
+              }
+
               if (hasLatestHumanBbox) {
-                if (!isNaN(numX) && numX >= pMinX - 100 && numX <= pMaxX + 100) {
-                  return numX;
+                const finalX = !isNaN(numX) && numX >= pMinX - 100 && numX <= pMaxX + 100 ? numX : Math.round(pMinX);
+                const finalY = !isNaN(numY) && numY >= pMinY - 100 && numY <= pMaxY + 100 ? numY : Math.round(pMinY);
+                return { x: finalX, y: finalY };
+              }
+
+              if (isFinite(globalMinX) && isFinite(globalMaxX) && isFinite(globalMinY) && isFinite(globalMaxY)) {
+                let candidateX = !isNaN(numX) ? numX : visibleCenterX - shapeW / 2;
+                let candidateY = !isNaN(numY) ? numY : visibleCenterY - shapeH / 2;
+
+                const margin = 30;
+                const isOverlapping = (
+                  candidateX < globalMaxX + margin &&
+                  candidateX + shapeW > globalMinX - margin &&
+                  candidateY < globalMaxY + margin &&
+                  candidateY + shapeH > globalMinY - margin
+                );
+
+                if (isOverlapping || isNaN(numX) || isNaN(numY)) {
+                  // Place in open space on canvas window without overlapping existing drawing
+                  if (globalMaxX + shapeW + 50 <= canvas.width - 30) {
+                    return { x: Math.round(globalMaxX + 50), y: Math.round(globalMinY) };
+                  }
+                  if (globalMinX - shapeW - 50 >= 30) {
+                    return { x: Math.round(globalMinX - shapeW - 50), y: Math.round(globalMinY) };
+                  }
+                  if (globalMaxY + shapeH + 50 <= canvas.height - 30) {
+                    return { x: Math.round(Math.max(30, globalMinX)), y: Math.round(globalMaxY + 50) };
+                  }
+                  if (globalMinY - shapeH - 50 >= 30) {
+                    return { x: Math.round(Math.max(30, globalMinX)), y: Math.round(globalMinY - shapeH - 50) };
+                  }
                 }
-                return Math.round(pMinX);
+                return { x: Math.round(candidateX), y: Math.round(candidateY) };
               }
-              if (!isNaN(numX) && numX >= 10 && numX <= canvas.width - 40) {
-                return numX;
-              }
-              if (isFinite(globalMaxX) && globalMaxX > 0) {
-                if (globalMaxX + shapeW + 40 <= canvas.width - 40) {
-                  return Math.round(globalMaxX + 50);
-                }
-              }
-              return Math.max(30, Math.round(visibleCenterX - shapeW / 2));
+
+              const safeTop = 110;
+              const safeBottom = Math.max(safeTop, canvas.height - shapeH - 110);
+              const defaultX = !isNaN(numX) && numX >= 30 && numX <= canvas.width - shapeW - 30 ? numX : Math.max(30, Math.round(visibleCenterX - shapeW / 2));
+              const defaultY = !isNaN(numY) && numY >= safeTop && numY <= safeBottom ? numY : Math.max(safeTop, Math.round(visibleCenterY - shapeH / 2));
+              return { 
+                x: Math.round(Math.max(30, Math.min(Math.max(30, canvas.width - shapeW - 30), defaultX))), 
+                y: Math.round(Math.max(safeTop, Math.min(safeBottom, defaultY))) 
+              };
             };
 
-            const computeTargetY = (rawY: any, shapeH: number) => {
-              const numY = rawY != null ? Number(rawY) : NaN;
-              if (hasLatestHumanBbox) {
-                if (!isNaN(numY) && numY >= pMinY - 100 && numY <= pMaxY + 100) {
-                  return numY;
-                }
-                return Math.round(pMinY);
-              }
-              if (!isNaN(numY) && numY >= 10 && numY <= canvas.height - 40) {
-                return numY;
-              }
-              if (isFinite(globalMinY) && globalMinY > 0) {
-                return Math.round(globalMinY);
-              }
-              return Math.max(30, Math.round(visibleCenterY - shapeH / 2));
-            };
+            const computeTargetX = (rawX: any, shapeW: number, rawY?: any, shapeH?: number) =>
+              computeTargetPos(rawX, rawY, shapeW, shapeH || 100).x;
+
+            const computeTargetY = (rawY: any, shapeH: number, rawX?: any, shapeW?: number) =>
+              computeTargetPos(rawX, rawY, shapeW || 100, shapeH).y;
 
             // Generate points based on shape primitive
             if (stroke.shapeType === 'circle') {
-              const r = stroke.r != null && !isNaN(Number(stroke.r)) && Number(stroke.r) > 0 ? Number(stroke.r) : 100;
-              const cx = computeTargetX(stroke.cx != null ? stroke.cx : (stroke.x != null ? Number(stroke.x) + r : null), r * 2);
-              const cy = computeTargetY(stroke.cy != null ? stroke.cy : (stroke.y != null ? Number(stroke.y) + r : null), r * 2);
+              const r = targetBox 
+                ? Math.round(Math.min(targetBox.width, targetBox.height) / 2)
+                : (stroke.r != null && !isNaN(Number(stroke.r)) && Number(stroke.r) > 0 ? Number(stroke.r) : 100);
+              const rawXVal = stroke.cx != null ? stroke.cx : (stroke.x != null ? Number(stroke.x) + r : null);
+              const rawYVal = stroke.cy != null ? stroke.cy : (stroke.y != null ? Number(stroke.y) + r : null);
+              const cx = computeTargetX(rawXVal, r * 2, rawYVal, r * 2);
+              const cy = computeTargetY(rawYVal, r * 2, rawXVal, r * 2);
               const steps = 36;
               for (let i = 0; i <= steps; i++) {
                 const angle = (i / steps) * Math.PI * 2;
@@ -576,10 +795,10 @@ DIRECTIONS:
               }
               subPaths.push(points);
             } else if (stroke.shapeType === 'rectangle') {
-              const w = stroke.width != null && !isNaN(Number(stroke.width)) && Number(stroke.width) > 0 ? Number(stroke.width) : 320;
-              const h = stroke.height != null && !isNaN(Number(stroke.height)) && Number(stroke.height) > 0 ? Number(stroke.height) : 220;
-              const x = computeTargetX(stroke.x, w);
-              const y = computeTargetY(stroke.y, h);
+              const w = targetBox ? Math.round(targetBox.width) : (stroke.width != null && !isNaN(Number(stroke.width)) && Number(stroke.width) > 0 ? Number(stroke.width) : 320);
+              const h = targetBox ? Math.round(targetBox.height) : (stroke.height != null && !isNaN(Number(stroke.height)) && Number(stroke.height) > 0 ? Number(stroke.height) : 220);
+              const x = computeTargetX(stroke.x, w, stroke.y, h);
+              const y = computeTargetY(stroke.y, h, stroke.x, w);
               points = [
                 {x, y},
                 {x: x + w, y},
@@ -637,9 +856,19 @@ DIRECTIONS:
               if (rawSvg.includes('<')) {
                 svgContainer.innerHTML = rawSvg;
               } else {
-                const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                pathEl.setAttribute('d', rawSvg);
-                svgContainer.appendChild(pathEl);
+                // Split multi-part paths starting with M/m so subpaths trace without jumping lines!
+                const subParts = rawSvg.split(/(?=[Mm]\s*[-+]?\d)/).map((s: string) => s.trim()).filter((s: string) => s.length > 2);
+                if (subParts.length > 1) {
+                  for (const part of subParts) {
+                    const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    pathEl.setAttribute('d', part);
+                    svgContainer.appendChild(pathEl);
+                  }
+                } else {
+                  const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                  pathEl.setAttribute('d', rawSvg);
+                  svgContainer.appendChild(pathEl);
+                }
               }
 
               // Convert all non-path SVG elements to path elements
@@ -683,11 +912,40 @@ DIRECTIONS:
                     try {
                       const len = pEl.getTotalLength();
                       if (len > 0) {
-                        const b = pEl.getBBox();
-                        minX = Math.min(minX, b.x);
-                        minY = Math.min(minY, b.y);
-                        maxX = Math.max(maxX, b.x + b.width);
-                        maxY = Math.max(maxY, b.y + b.height);
+                        let bX = 0, bY = 0, bW = 0, bH = 0;
+                        try {
+                          const b = pEl.getBBox();
+                          if (b && (b.width > 0 || b.height > 0)) {
+                            bX = b.x;
+                            bY = b.y;
+                            bW = b.width;
+                            bH = b.height;
+                          }
+                        } catch (_) {}
+
+                        // If getBBox was 0 (e.g. headless/off-screen), compute accurate bbox via sample points
+                        if (bW === 0 && bH === 0) {
+                          let sMinX = Infinity, sMinY = Infinity, sMaxX = -Infinity, sMaxY = -Infinity;
+                          const samples = 10;
+                          for (let s = 0; s <= samples; s++) {
+                            const pt = pEl.getPointAtLength((s / samples) * len);
+                            if (pt) {
+                              sMinX = Math.min(sMinX, pt.x);
+                              sMinY = Math.min(sMinY, pt.y);
+                              sMaxX = Math.max(sMaxX, pt.x);
+                              sMaxY = Math.max(sMaxY, pt.y);
+                            }
+                          }
+                          bX = sMinX;
+                          bY = sMinY;
+                          bW = sMaxX - sMinX;
+                          bH = sMaxY - sMinY;
+                        }
+
+                        minX = Math.min(minX, bX);
+                        minY = Math.min(minY, bY);
+                        maxX = Math.max(maxX, bX + bW);
+                        maxY = Math.max(maxY, bY + bH);
                         pathData.push({ el: pEl, len });
                       }
                     } catch (err) {
@@ -701,28 +959,37 @@ DIRECTIONS:
                     const overallX = isFinite(minX) ? minX : 0;
                     const overallY = isFinite(minY) ? minY : 0;
 
-                    const targetWidth = (stroke.width != null && !isNaN(Number(stroke.width)) && Number(stroke.width) > 0)
-                      ? Number(stroke.width) : Math.max(overallWidth, 220);
-                    const targetHeight = (stroke.height != null && !isNaN(Number(stroke.height)) && Number(stroke.height) > 0)
-                      ? Number(stroke.height) : Math.max(overallHeight, 160);
+                    const targetWidth = targetBox 
+                      ? Math.round(targetBox.width) 
+                      : ((stroke.width != null && !isNaN(Number(stroke.width)) && Number(stroke.width) > 0) ? Number(stroke.width) : Math.max(overallWidth, 220));
+                    const targetHeight = targetBox 
+                      ? Math.round(targetBox.height) 
+                      : ((stroke.height != null && !isNaN(Number(stroke.height)) && Number(stroke.height) > 0) ? Number(stroke.height) : Math.max(overallHeight, 160));
 
-                    const targetX = computeTargetX(stroke.x, targetWidth);
-                    const targetY = computeTargetY(stroke.y, targetHeight);
+                    const targetX = computeTargetX(stroke.x, targetWidth, stroke.y, targetHeight);
+                    const targetY = computeTargetY(stroke.y, targetHeight, stroke.x, targetWidth);
 
-                    const scaleX = overallWidth > 0.1 ? targetWidth / overallWidth : 1;
-                    const scaleY = overallHeight > 0.1 ? targetHeight / overallHeight : 1;
+                    // Preserve aspect ratio to prevent squishing/stretching shapes (e.g. keeping wheels circular!)
+                    const uniformScale = Math.min(
+                      overallWidth > 0.1 ? targetWidth / overallWidth : 1,
+                      overallHeight > 0.1 ? targetHeight / overallHeight : 1
+                    );
+                    const renderW = overallWidth * uniformScale;
+                    const renderH = overallHeight * uniformScale;
+                    const startX = targetX + (targetWidth - renderW) / 2;
+                    const startY = targetY + (targetHeight - renderH) / 2;
 
                     for (const item of pathData) {
-                      const sampleRate = 1.5;
-                      const steps = Math.max(35, Math.floor(item.len / sampleRate));
+                      const sampleRate = 3.2;
+                      const steps = Math.max(20, Math.floor(item.len / sampleRate));
                       const stepLen = item.len / steps;
                       let currentSubPath: { x: number; y: number }[] = [];
                       let lastSvgPt: DOMPoint | null = null;
 
                       for (let i = 0; i <= steps; i++) {
                         const p = item.el.getPointAtLength((i / steps) * item.len);
-                        const mappedX = targetX + (p.x - overallX) * scaleX;
-                        const mappedY = targetY + (p.y - overallY) * scaleY;
+                        const mappedX = startX + (p.x - overallX) * uniformScale;
+                        const mappedY = startY + (p.y - overallY) * uniformScale;
 
                         const jitterX = stroke.fill ? 0 : (Math.random() - 0.5) * 0.8;
                         const jitterY = stroke.fill ? 0 : (Math.random() - 0.5) * 0.8;
@@ -818,24 +1085,32 @@ DIRECTIONS:
                 createdByAI: true,
               });
               
-              // Smooth observable progressive drawing pace so the user can watch the AI draw step-by-step
+              // Smooth, high-framerate progressive drawing pace so the user can watch the AI draw step-by-step
               const totalPoints = points.length;
-              const BATCH_SIZE = totalPoints > 120 ? 3 : (totalPoints > 40 ? 2 : 1);
-              for (let i = 1; i < points.length; i += BATCH_SIZE) {
-                const chunk = points.slice(i, i + BATCH_SIZE);
+              const targetFrames = Math.min(22, Math.max(8, Math.round(totalPoints / 6)));
+              const stepCount = Math.max(1, Math.ceil((totalPoints - 1) / targetFrames));
+
+              for (let i = 1; i < totalPoints; i += stepCount) {
+                const chunk = points.slice(i, Math.min(totalPoints, i + stepCount));
                 const mappedChunk = chunk.map(mapPoint);
-                useStore.getState().updateStrokePointsById(newStrokeId, mappedChunk);
+                useStore.getState().updateStrokePointsById(newStrokeId, mappedChunk, false);
                 const lastP = mappedChunk[mappedChunk.length - 1];
                 if (lastP) setAiCursor(lastP);
-                const speed = 15;
-                await new Promise(r => setTimeout(r, speed));
+                // Sync smoothly with display refresh via requestAnimationFrame
+                await new Promise(r => {
+                  if (typeof requestAnimationFrame === 'function') {
+                    requestAnimationFrame(r);
+                  } else {
+                    setTimeout(r, 16);
+                  }
+                });
               }
               finishStroke();
-              // A pleasant pen pause before starting the next stroke
-              await new Promise(r => setTimeout(r, 70));
+              // A brief, natural pen pause before beginning the next stroke segment
+              await new Promise(r => setTimeout(r, 40));
             }
-            // Pause between major shape elements
-            await new Promise(r => setTimeout(r, 150));
+            // Brief pause between major shape elements
+            await new Promise(r => setTimeout(r, 60));
           }
           
           // Save conversational history to canvas strokes purely as hidden memory records length
@@ -872,6 +1147,6 @@ DIRECTIONS:
   } finally {
     clearInterval(brainstormingInterval);
     onGeneratingStateChange?.(false);
-    setTimeout(() => setAiCursor(null), 1000);
+    setTimeout(() => setAiCursor(null), 250);
   }
 }

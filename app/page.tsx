@@ -7,11 +7,14 @@ import SettingsModal from '@/components/SettingsModal';
 import QuotaErrorModal from '@/components/QuotaErrorModal';
 import CommentOverlay from '@/components/CommentOverlay';
 import Minimap from '@/components/Minimap';
+import ExportModal from '@/components/ExportModal';
+import KeyboardShortcuts from '@/components/KeyboardShortcuts';
 import { useStore } from '@/lib/store';
 import { ChevronLeft, Trash, Download, Smile, UserPlus, Sparkles, Wand2, Loader2, Settings, X } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { handleAiAction, playSound } from '@/lib/ai-handler';
+import AiDrawingCursor from '@/components/AiDrawingCursor';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -45,15 +48,10 @@ const TypewriterText = ({ text }: { text: string }) => {
   );
 };
 
-// Typewriter effect deleted or keep it if needed
-// Sound helper removed (moved to ai-handler)
-
 export default function Home() {
-  const { theme, aiCursor, offset, scale, topMessage, aiThoughts, isGenerating, initSocket, settings, toggleSettings } = useStore();
+  const { theme, offset, scale, topMessage, aiThoughts, isGenerating, initSocket, settings, toggleSettings, isAiOpen, setIsAiOpen, isExportOpen, setIsExportOpen } = useStore();
   const [isCopied, setIsCopied] = useState(false);
-  const [isAiOpen, setIsAiOpen] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
 
@@ -92,29 +90,6 @@ export default function Home() {
       playSound(360, 'sine', 0.15);
       setShowClearConfirm(true);
     }
-  };
-
-  const handleSave = () => {
-    setIsSaving(true);
-    const canvas = document.querySelector('canvas');
-    if (!canvas) return;
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = canvas.width;
-    tempCanvas.height = canvas.height;
-    const tempCtx = tempCanvas.getContext('2d');
-    if (tempCtx) {
-      tempCtx.fillStyle = theme === 'dark' ? '#0f1115' : '#ffffff';
-      tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-      tempCtx.drawImage(canvas, 0, 0);
-    }
-    const dataUrl = tempCanvas.toDataURL('image/png');
-    const a = document.createElement('a');
-    a.href = dataUrl;
-    a.download = 'ai-canvas.png';
-    a.click();
-    useStore.getState().setTopMessage("Exporting artwork as a clean PNG image. Download started!");
-    playSound(880, 'sine', 0.2);
-    setTimeout(() => setIsSaving(false), 2000);
   };
 
   return (
@@ -164,52 +139,36 @@ export default function Home() {
             theme === 'dark' ? 'bg-gray-900/60 border-gray-700/50 text-gray-300 hover:text-red-400' : 'bg-white/60 border-gray-200 text-gray-500 hover:text-red-500',
             isClearing && (theme === 'dark' ? "bg-red-500/20 border-red-500/30 text-red-300" : "bg-red-50 border-red-200 text-red-600")
           )}
-          title="Clear Canvas"
+          title="Clear Canvas [C]"
         >
           <Trash size={14} className="sm:w-4 sm:h-4" />
           {isClearing && <span className="hidden sm:inline text-[10px] font-bold">CLEARED</span>}
         </button>
         <button
-          onClick={handleSave}
+          onClick={() => {
+            setIsExportOpen(true);
+            playSound(640, 'sine', 0.1);
+          }}
           suppressHydrationWarning
           className={cn(
             "flex items-center gap-1.5 h-8 sm:h-10 px-2 sm:px-3 rounded-lg sm:rounded-xl backdrop-blur-md shadow-sm border transition-all active:scale-95",
-            theme === 'dark' ? 'bg-gray-900/60 border-gray-700/50 text-gray-300 hover:text-green-400' : 'bg-white/60 border-gray-200 text-gray-500 hover:text-green-600',
-            isSaving && (theme === 'dark' ? "bg-green-500/20 border-green-500/30 text-green-300" : "bg-green-50 border-green-200 text-green-600")
+            theme === 'dark' ? 'bg-gray-900/60 border-gray-700/50 text-gray-300 hover:text-indigo-400' : 'bg-white/60 border-gray-200 text-gray-500 hover:text-indigo-600',
+            isExportOpen && (theme === 'dark' ? "bg-indigo-500/20 border-indigo-500/30 text-indigo-300" : "bg-indigo-50 border-indigo-200 text-indigo-600")
           )}
-          title="Save Artwork"
+          title="Export Canvas (PNG, JPEG, SVG) [S]"
         >
-          <Download size={14} className="sm:w-4 sm:h-4" />
-          {isSaving && <span className="hidden sm:inline text-[10px] font-bold">SAVED</span>}
+          <Download size={14} className="sm:w-4 sm:h-4 text-indigo-500" />
+          <span className="hidden sm:inline text-[10px] font-bold">EXPORT</span>
         </button>
       </div>
 
       {/* Canvas Area Ambient Glow */}
-      <div className={cn(
-        "absolute inset-0 transition-all duration-700 pointer-events-none z-30",
-        isGenerating ? "bg-indigo-500/5 backdrop-blur-[2px]" : "bg-transparent backdrop-blur-none"
-      )} />
+      <div className="absolute inset-0 pointer-events-none z-30 bg-transparent" />
       <Canvas />
       <CommentOverlay />
 
-      {/* AI Cursor */}
-      {aiCursor && !isNaN(aiCursor.x) && !isNaN(aiCursor.y) && (
-        <div 
-          className="absolute pointer-events-none z-50 transition-all duration-75 ease-linear"
-          style={{ 
-            left: `${aiCursor.x * scale + offset.x}px`, 
-            top: `${aiCursor.y * scale + offset.y}px`,
-            transform: 'translate(-50%, -50%)'
-          }}
-        >
-          <div className="relative">
-            <Wand2 className="text-indigo-500 animate-bounce" size={24} />
-            <div className="absolute top-full left-full mt-1 ml-1 bg-indigo-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-lg whitespace-nowrap">
-              Drawing...
-            </div>
-          </div>
-        </div>
-      )}
+      {/* AI Precision Drawing Cursor */}
+      <AiDrawingCursor />
 
       {/* AI Assistant Sidebar */}
       <div 
@@ -282,7 +241,7 @@ export default function Home() {
             "w-12 h-12 rounded-full flex items-center justify-center shadow-lg transition-all hover:scale-105 pointer-events-auto",
             isAiOpen ? 'bg-indigo-500 text-white' : (theme === 'dark' ? 'bg-gray-800 border border-gray-700 text-indigo-400' : 'bg-white border border-gray-200 text-indigo-600')
           )}
-          title="Toggle AI Assistant"
+          title="Toggle AI Assistant [A]"
         >
           <Sparkles size={20} className={cn(isAiOpen ? '' : 'animate-pulse')} />
         </button>
@@ -427,6 +386,11 @@ export default function Home() {
           </div>
         </div>
       )}
+      {/* Export Modal */}
+      <ExportModal />
+
+      {/* Keyboard Shortcuts Listener */}
+      <KeyboardShortcuts onTriggerClear={handleClear} />
     </main>
   );
 }

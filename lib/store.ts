@@ -15,6 +15,7 @@ export interface Layer {
 export interface Point {
   x: number;
   y: number;
+  pressure?: number;
 }
 
 export interface Stroke {
@@ -37,6 +38,13 @@ export interface Comment {
   author: 'human' | 'ai';
 }
 
+export interface AiMemoryItem {
+  prompt: string;
+  recognizedObject: string;
+  box: { x: number; y: number; width: number; height: number };
+  timestamp: number;
+}
+
 export interface Settings {
   autoDraw: boolean;
   temperature: number;
@@ -47,6 +55,15 @@ export interface Settings {
   geminiModel: string;
   claudeModel: string;
   skipClearConfirmation: boolean;
+}
+
+export interface AiPreviewBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  prompt: string;
+  confirmed?: boolean;
 }
 
 interface AppState {
@@ -79,6 +96,12 @@ interface AppState {
   setShowMinimap: (val: boolean) => void;
   quotaError: { model: string; message: string; provider: string } | null;
   setQuotaError: (val: { model: string; message: string; provider: string } | null) => void;
+  aiPreviewBox: AiPreviewBox | null;
+  setAiPreviewBox: (box: AiPreviewBox | null) => void;
+  updateAiPreviewBoxPos: (x: number, y: number, width: number, height: number) => void;
+  aiMemory: AiMemoryItem[];
+  addAiMemory: (item: AiMemoryItem) => void;
+  clearAiMemory: () => void;
   
   initSocket: (roomId: string) => void;
   addStroke: (stroke: Stroke, emit?: boolean) => void;
@@ -104,6 +127,7 @@ interface AppState {
   setTheme: (theme: Theme) => void;
   setActiveLayer: (layerId: string) => void;
   addLayer: (layer: Layer) => void;
+  deleteLayer: (layerId: string) => void;
   reorderLayers: (layers: Layer[]) => void;
   toggleLayerVisibility: (layerId: string) => void;
   toggleLayerLock: (layerId: string) => void;
@@ -112,6 +136,12 @@ interface AppState {
   setIsGenerating: (val: boolean) => void;
   setIsGeneratingBg: (val: boolean) => void;
   addTokens: (tokens: number) => void;
+  isExportOpen: boolean;
+  setIsExportOpen: (val: boolean) => void;
+  isAiOpen: boolean;
+  setIsAiOpen: (val: boolean | ((prev: boolean) => boolean)) => void;
+  isLayersOpen: boolean;
+  setIsLayersOpen: (val: boolean | ((prev: boolean) => boolean)) => void;
 }
 
 export const useStore = create<AppState>((set, get) => ({
@@ -155,6 +185,20 @@ export const useStore = create<AppState>((set, get) => ({
   latestHumanStrokeStartIndex: 0,
   showMinimap: false,
   quotaError: null,
+  isExportOpen: false,
+  setIsExportOpen: (val) => set({ isExportOpen: val }),
+  isAiOpen: false,
+  setIsAiOpen: (val) => set((state) => ({ isAiOpen: typeof val === 'function' ? val(state.isAiOpen) : val })),
+  isLayersOpen: false,
+  setIsLayersOpen: (val) => set((state) => ({ isLayersOpen: typeof val === 'function' ? val(state.isLayersOpen) : val })),
+  aiPreviewBox: null,
+  setAiPreviewBox: (box) => set({ aiPreviewBox: box }),
+  updateAiPreviewBoxPos: (x, y, width, height) => set((state) => ({
+    aiPreviewBox: state.aiPreviewBox ? { ...state.aiPreviewBox, x, y, width, height } : null
+  })),
+  aiMemory: [],
+  addAiMemory: (item) => set((state) => ({ aiMemory: [...state.aiMemory.slice(-10), item] })),
+  clearAiMemory: () => set({ aiMemory: [] }),
   setQuotaError: (val) => set({ quotaError: val }),
 
   initSocket: (roomId: string) => {
@@ -263,9 +307,108 @@ export const useStore = create<AppState>((set, get) => ({
     });
   },
   finishStroke: () => set((state) => {
+    let currentStrokes = [...state.strokes];
+    const lastStroke = currentStrokes[currentStrokes.length - 1];
+
+    if (lastStroke && (lastStroke.tool === 'eraser' || lastStroke.tool === 'ai-eraser') && lastStroke.points.length > 0) {
+      const getLineWidth = (size: Size) => {
+        if (typeof size === 'number') return size;
+        switch (size) {
+          case 'thin': return 2;
+          case 'medium': return 6;
+          case 'thick': return 12;
+          default: return 6;
+        }
+      };
+
+      const eraserRadius = (getLineWidth(lastStroke.size) * 4) / 2 + 8;
+      const eraserPts = lastStroke.points;
+      const r2 = eraserRadius * eraserRadius;
+
+      // Distance from point to line segment squared
+      const distToSegmentSq = (px: number, py: number, x1: number, y1: number, x2: number, y2: number) => {
+        const l2 = (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1);
+        if (l2 === 0) {
+          const dx = px - x1, dy = py - y1;
+          return dx * dx + dy * dy;
+        }
+        let t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2;
+        t = Math.max(0, Math.min(1, t));
+        const projX = x1 + t * (x2 - x1);
+        const projY = y1 + t * (y2 - y1);
+        const dx = px - projX, dy = py - projY;
+        return dx * dx + dy * dy;
+      };
+
+      const isPointErased = (pt: Point) => {
+        for (let j = 0; j < eraserPts.length; j++) {
+          const ePt = eraserPts[j];
+          const dx = pt.x - ePt.x;
+          const dy = pt.y - ePt.y;
+          if (dx * dx + dy * dy <= r2) return true;
+          if (j > 0) {
+            const prev = eraserPts[j - 1];
+            if (distToSegmentSq(pt.x, pt.y, prev.x, prev.y, ePt.x, ePt.y) <= r2) return true;
+          }
+        }
+        return false;
+      };
+
+      // Recalculate prior strokes: split and prune node points that fall within eraser radius
+      const recalculatedStrokes: Stroke[] = [];
+      for (let i = 0; i < currentStrokes.length - 1; i++) {
+        const s = currentStrokes[i];
+        if (s.tool === 'eraser' || s.tool === 'ai-eraser') {
+          // Do not keep old eraser strokes in vector history
+          continue;
+        }
+
+        // Split continuous points into sub-paths where points are erased
+        const subPaths: Point[][] = [];
+        let currentSegment: Point[] = [];
+
+        for (const pt of s.points) {
+          if (!isPointErased(pt)) {
+            currentSegment.push(pt);
+          } else {
+            if (currentSegment.length > 0) {
+              subPaths.push(currentSegment);
+              currentSegment = [];
+            }
+          }
+        }
+        if (currentSegment.length > 0) {
+          subPaths.push(currentSegment);
+        }
+
+        // Filter out tiny crumb remnants (artifacts with total length < 4px)
+        for (let k = 0; k < subPaths.length; k++) {
+          const path = subPaths[k];
+          if (path.length === 0) continue;
+          if (path.length === 1) {
+            // Lone dot artifact: discard to eliminate remnant crumbs
+            continue;
+          }
+          let totalLen = 0;
+          for (let m = 1; m < path.length; m++) {
+            totalLen += Math.hypot(path[m].x - path[m - 1].x, path[m].y - path[m - 1].y);
+          }
+          if (totalLen >= 4) {
+            recalculatedStrokes.push({
+              ...s,
+              id: `${s.id}-split-${k}`,
+              points: path
+            });
+          }
+        }
+      }
+      // Cleanly replace strokes array without the eraser artifact stroke
+      currentStrokes = recalculatedStrokes;
+    }
+
     const newHistory = state.history.slice(0, state.historyStep + 1);
-    newHistory.push([...state.strokes]);
-    return { history: newHistory, historyStep: newHistory.length - 1 };
+    newHistory.push(currentStrokes);
+    return { strokes: currentStrokes, history: newHistory, historyStep: newHistory.length - 1 };
   }),
   undo: () => set((state) => {
     if (state.historyStep > 0) {
@@ -363,6 +506,22 @@ export const useStore = create<AppState>((set, get) => ({
   setTheme: (theme) => set({ theme }),
   setActiveLayer: (layerId) => set({ activeLayerId: layerId }),
   addLayer: (layer) => set((state) => ({ layers: [...state.layers, layer] })),
+  deleteLayer: (layerId) => set((state) => {
+    if (state.layers.length <= 1) return state; // Keep at least one layer
+    const remainingLayers = state.layers.filter(l => l.id !== layerId);
+    const newActiveId = state.activeLayerId === layerId ? remainingLayers[0].id : state.activeLayerId;
+    // Filter out strokes on deleted layer or move to first remaining layer
+    const newStrokes = state.strokes.filter(s => s.layerId !== layerId);
+    const newHistory = state.history.slice(0, state.historyStep + 1);
+    newHistory.push(newStrokes);
+    return {
+      layers: remainingLayers,
+      activeLayerId: newActiveId,
+      strokes: newStrokes,
+      history: newHistory,
+      historyStep: newHistory.length - 1
+    };
+  }),
   reorderLayers: (newLayers) => set({ layers: newLayers }),
   toggleLayerVisibility: (layerId) => set((state) => ({
     layers: state.layers.map(l => l.id === layerId ? { ...l, visible: !l.visible } : l)

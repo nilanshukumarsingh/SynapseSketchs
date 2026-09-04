@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { useStore } from '@/lib/store';
-import { Pencil, Eraser, Type, Settings, Send, Dices, Loader2, Wand2, Moon, Sun, Layers, Plus, PaintBucket, Sparkles, Undo2, Redo2, Lock, Unlock, Image as ImageIcon, ZoomIn, ZoomOut, Maximize, Palette, PenTool, Trash, Download, Hand, GripVertical, Check, Brain, RotateCcw, Map } from 'lucide-react';
+import { Pencil, Eraser, Type, Settings, Send, Dices, Loader2, Wand2, Moon, Sun, Layers, Plus, PaintBucket, Sparkles, Undo2, Redo2, Lock, Unlock, Image as ImageIcon, ZoomIn, ZoomOut, Maximize, Palette, PenTool, Trash, Download, Hand, GripVertical, Check, Brain, RotateCcw, Map, Eye, EyeOff, X } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { handleAiAction, handleGenerateBg, playSound } from '@/lib/ai-handler';
+import { handleAiAction, handleGenerateBg, prepareAiTargetPreview, playSound } from '@/lib/ai-handler';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -15,9 +15,8 @@ const DEFAULT_COLORS = ['#ffb3ba', '#baffc9', '#bae1ff', '#000000'];
 const SIZES = ['thin', 'medium', 'thick'] as const;
 
 export default function Toolbar() {
-  const { currentTool, currentColor, currentSize, setTool, setColor, setSize, toggleSettings, theme, setTheme, layers, activeLayerId, setActiveLayer, toggleLayerVisibility, toggleLayerLock, undo, redo, history, historyStep, asciiChar, setAsciiChar, setBackgroundImage, scale, setScale, setOffset, clearCanvas, isGenerating, setIsGenerating, isGeneratingBg, setIsGeneratingBg, settings, updateSettings, strokes, latestHumanStrokeStartIndex, eraseLatestHumanStrokes, showMinimap, setShowMinimap } = useStore();
+  const { currentTool, currentColor, currentSize, setTool, setColor, setSize, toggleSettings, theme, setTheme, layers, activeLayerId, setActiveLayer, toggleLayerVisibility, toggleLayerLock, deleteLayer, undo, redo, history, historyStep, asciiChar, setAsciiChar, setBackgroundImage, scale, setScale, setOffset, clearCanvas, isGenerating, setIsGenerating, isGeneratingBg, setIsGeneratingBg, settings, updateSettings, strokes, latestHumanStrokeStartIndex, eraseLatestHumanStrokes, showMinimap, setShowMinimap, isLayersOpen, setIsLayersOpen } = useStore();
   const [colors, setColors] = useState(DEFAULT_COLORS);
-  const [showLayers, setShowLayers] = useState(false);
   const [bgPrompt, setBgPrompt] = useState('');
   const [showBgPrompt, setShowBgPrompt] = useState(false);
   const [showSizeDropdown, setShowSizeDropdown] = useState(false);
@@ -101,8 +100,8 @@ export default function Toolbar() {
   };
 
   const handleSend = React.useCallback(async (promptText?: string) => {
-    await handleAiAction(promptText, setIsGenerating);
-  }, [setIsGenerating]);
+    prepareAiTargetPreview(promptText);
+  }, []);
 
   const onGenerateBg = async () => {
     if (await handleGenerateBg(bgPrompt, setIsGeneratingBg)) {
@@ -127,89 +126,163 @@ export default function Toolbar() {
   return (
     <>
       {/* Layers Panel */}
-      {showLayers && (
+      {isLayersOpen && (
         <div 
           onPointerDown={(e) => e.stopPropagation()} 
           onTouchStart={(e) => e.stopPropagation()}
           className={cn(
-            "fixed bottom-24 left-1/2 -translate-x-1/2 p-5 rounded-3xl shadow-2xl border z-40 transition-all min-w-[280px]",
+            "fixed bottom-24 left-1/2 -translate-x-1/2 p-5 rounded-3xl shadow-2xl border z-40 transition-all min-w-[320px] max-w-[92vw]",
             theme === 'dark' ? "bg-gray-900/95 border-gray-700/50 text-white backdrop-blur-2xl" : "bg-white/95 border-white/60 text-gray-800 backdrop-blur-2xl"
           )}
         >
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <Layers size={18} className={theme === 'dark' ? 'text-indigo-400' : 'text-indigo-500'} />
-              <h3 className="text-sm font-semibold tracking-wide">Layers</h3>
-            </div>
-            <button 
-              onClick={() => {
-                const newLayerId = `layer-${Date.now()}`;
-                useStore.getState().addLayer({ id: newLayerId, name: `Layer ${layers.length + 1}`, visible: true, locked: false });
-                useStore.getState().setActiveLayer(newLayerId);
-                playSound(900, 'sine', 0.05);
-              }}
-              suppressHydrationWarning
-              className={cn("p-1.5 rounded-lg transition-all", theme === 'dark' ? "bg-gray-800 hover:bg-gray-700 text-gray-300" : "bg-gray-100 hover:bg-gray-200 text-gray-600")}
-              title="Add new layer"
-            >
-              <Plus size={16} />
-            </button>
-          </div>
-          <div className="flex flex-col gap-2 max-h-[240px] overflow-y-auto pr-1 custom-scrollbar">
-            {layers.map((layer, index) => (
-              <div 
-                key={layer.id} 
-                draggable
-                onDragStart={(e) => handleDragStart(e, index)}
-                onDragOver={(e) => handleDragOver(e, index)}
-                onDrop={(e) => handleDrop(e, index)}
-                onDragEnd={() => setDraggedIdx(null)}
-                className={cn(
-                  "flex items-center justify-between p-3 rounded-xl cursor-grab active:cursor-grabbing transition-all border",
-                  draggedIdx === index ? "opacity-40 scale-95 border-dashed border-indigo-500" : "",
-                  activeLayerId === layer.id 
-                    ? (theme === 'dark' ? "bg-indigo-500/20 border-indigo-500/30 text-indigo-300" : "bg-indigo-50 border-indigo-200 text-indigo-700") 
-                    : (theme === 'dark' ? "bg-gray-800/50 border-transparent hover:bg-gray-800 hover:border-gray-700" : "bg-gray-50 border-transparent hover:bg-gray-100 hover:border-gray-200")
-                )}
-                onClick={() => {
-                  setActiveLayer(layer.id);
-                  playSound(600 + index * 50, 'sine', 0.05);
-                }}
-              >
-                <div className="flex items-center gap-2">
-                  <div className={cn("text-gray-400 hover:text-gray-600 transition-colors cursor-grab p-0.5", theme === 'dark' ? "hover:text-gray-200" : "hover:text-gray-700")}>
-                    <GripVertical size={14} />
-                  </div>
-                  <div className={cn("w-2 h-2 rounded-full", activeLayerId === layer.id ? "bg-indigo-500" : "bg-transparent")} />
-                  <span className="text-sm font-medium">{layer.name}</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button 
-                    onClick={(e) => { 
-                      e.stopPropagation(); 
-                      toggleLayerLock(layer.id);
-                      playSound(layer.locked ? 500 : 300, 'triangle', 0.05);
-                    }}
-                    suppressHydrationWarning
-                    className={cn("p-1.5 rounded-md transition-colors", layer.locked ? (theme === 'dark' ? "text-red-400 hover:bg-red-500/20" : "text-red-500 hover:bg-red-100") : (theme === 'dark' ? "text-gray-400 hover:bg-gray-700" : "text-gray-500 hover:bg-gray-200"))}
-                    title={layer.locked ? "Unlock layer" : "Lock layer"}
-                  >
-                    {layer.locked ? <Lock size={14} /> : <Unlock size={14} />}
-                  </button>
-                  <button 
-                    onClick={(e) => { 
-                      e.stopPropagation(); 
-                      toggleLayerVisibility(layer.id);
-                      playSound(layer.visible ? 300 : 500, 'triangle', 0.05);
-                    }}
-                    suppressHydrationWarning
-                    className={cn("text-[10px] font-bold px-2.5 py-1 rounded-md transition-colors", layer.visible ? (theme === 'dark' ? "bg-green-500/20 text-green-400 hover:bg-green-500/30" : "bg-green-100 text-green-600 hover:bg-green-200") : (theme === 'dark' ? "bg-gray-700 text-gray-400 hover:bg-gray-600" : "bg-gray-200 text-gray-500 hover:bg-gray-300"))}
-                  >
-                    {layer.visible ? 'VISIBLE' : 'HIDDEN'}
-                  </button>
-                </div>
+              <div className="p-1.5 rounded-xl bg-indigo-500/10 text-indigo-500">
+                <Layers size={18} />
               </div>
-            ))}
+              <div>
+                <h3 className="text-sm font-bold tracking-wide flex items-center gap-1.5">
+                  <span>Layers Manager</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full font-mono bg-indigo-500/20 text-indigo-400">
+                    {layers.filter(l => l.visible).length}/{layers.length}
+                  </span>
+                </h3>
+                <p className={cn("text-[11px]", theme === 'dark' ? "text-gray-400" : "text-gray-500")}>
+                  Show, hide, lock & reorder layers [L]
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1">
+              <button 
+                onClick={() => {
+                  const newLayerId = `layer-${Date.now()}`;
+                  useStore.getState().addLayer({ id: newLayerId, name: `Layer ${layers.length + 1}`, visible: true, locked: false });
+                  useStore.getState().setActiveLayer(newLayerId);
+                  useStore.getState().setTopMessage(`Created new Layer ${layers.length + 1}!`);
+                  playSound(900, 'sine', 0.05);
+                }}
+                suppressHydrationWarning
+                className={cn(
+                  "p-1.5 rounded-lg transition-all flex items-center gap-1 text-xs font-semibold", 
+                  theme === 'dark' ? "bg-gray-800 hover:bg-gray-700 text-gray-200" : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+                )}
+                title="Add new layer"
+              >
+                <Plus size={15} />
+                <span className="hidden sm:inline">Add</span>
+              </button>
+              <button
+                onClick={() => setIsLayersOpen(false)}
+                className={cn(
+                  "p-1.5 rounded-lg transition-colors",
+                  theme === 'dark' ? "text-gray-400 hover:text-white hover:bg-gray-800" : "text-gray-400 hover:text-black hover:bg-gray-100"
+                )}
+                title="Close panel [Esc]"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2 max-h-[260px] overflow-y-auto pr-1 custom-scrollbar">
+            {layers.map((layer, index) => {
+              const strokeCount = strokes.filter(s => (s.layerId || 'layer-fg') === layer.id).length;
+              return (
+                <div 
+                  key={layer.id} 
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, index)}
+                  onDragOver={(e) => handleDragOver(e, index)}
+                  onDrop={(e) => handleDrop(e, index)}
+                  onDragEnd={() => setDraggedIdx(null)}
+                  className={cn(
+                    "flex items-center justify-between p-2.5 rounded-2xl cursor-grab active:cursor-grabbing transition-all border",
+                    draggedIdx === index ? "opacity-40 scale-95 border-dashed border-indigo-500" : "",
+                    activeLayerId === layer.id 
+                      ? (theme === 'dark' ? "bg-indigo-500/20 border-indigo-500/40 text-indigo-200" : "bg-indigo-50 border-indigo-200 text-indigo-900 shadow-sm") 
+                      : (theme === 'dark' ? "bg-gray-800/50 border-transparent hover:bg-gray-800 hover:border-gray-700 text-gray-300" : "bg-gray-50 border-transparent hover:bg-gray-100 hover:border-gray-200 text-gray-700")
+                  )}
+                  onClick={() => {
+                    setActiveLayer(layer.id);
+                    playSound(600 + index * 50, 'sine', 0.05);
+                  }}
+                >
+                  <div className="flex items-center gap-2 min-w-0 pr-2">
+                    <div className={cn("text-gray-400 hover:text-gray-600 transition-colors cursor-grab p-0.5", theme === 'dark' ? "hover:text-gray-200" : "hover:text-gray-700")}>
+                      <GripVertical size={14} />
+                    </div>
+                    <div className={cn("w-2 h-2 rounded-full shrink-0", activeLayerId === layer.id ? "bg-indigo-500 ring-2 ring-indigo-500/30" : "bg-transparent")} />
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-xs font-bold truncate">{layer.name}</span>
+                      <span className="text-[10px] text-gray-400 font-mono">
+                        {strokeCount} {strokeCount === 1 ? 'stroke' : 'strokes'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1 shrink-0">
+                    {/* Independent Visibility Toggle */}
+                    <button 
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        toggleLayerVisibility(layer.id);
+                        useStore.getState().setTopMessage(`${layer.name} is now ${layer.visible ? 'hidden' : 'visible'} on canvas.`);
+                        playSound(layer.visible ? 300 : 520, 'triangle', 0.05);
+                      }}
+                      suppressHydrationWarning
+                      className={cn(
+                        "px-2 py-1 rounded-lg flex items-center gap-1 text-[10px] font-bold transition-all",
+                        layer.visible 
+                          ? (theme === 'dark' ? "bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30" : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200") 
+                          : (theme === 'dark' ? "bg-gray-800 text-gray-500 hover:bg-gray-700 hover:text-gray-300" : "bg-gray-200 text-gray-500 hover:bg-gray-300 hover:text-gray-700")
+                      )}
+                      title={layer.visible ? "Hide layer strokes from canvas" : "Show layer strokes on canvas"}
+                    >
+                      {layer.visible ? <Eye size={13} className="text-emerald-500" /> : <EyeOff size={13} className="text-gray-400" />}
+                      <span>{layer.visible ? 'VISIBLE' : 'HIDDEN'}</span>
+                    </button>
+
+                    {/* Lock Toggle */}
+                    <button 
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        toggleLayerLock(layer.id);
+                        playSound(layer.locked ? 500 : 300, 'triangle', 0.05);
+                      }}
+                      suppressHydrationWarning
+                      className={cn(
+                        "p-1.5 rounded-lg transition-colors", 
+                        layer.locked 
+                          ? (theme === 'dark' ? "text-red-400 hover:bg-red-500/20" : "text-red-500 hover:bg-red-100") 
+                          : (theme === 'dark' ? "text-gray-400 hover:bg-gray-700" : "text-gray-500 hover:bg-gray-200")
+                      )}
+                      title={layer.locked ? "Unlock layer for drawing" : "Lock layer to prevent drawing"}
+                    >
+                      {layer.locked ? <Lock size={13} /> : <Unlock size={13} />}
+                    </button>
+
+                    {/* Delete Layer (Only if more than 1 layer) */}
+                    {layers.length > 1 && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteLayer(layer.id);
+                          useStore.getState().setTopMessage(`Deleted ${layer.name}.`);
+                          playSound(280, 'sawtooth', 0.1);
+                        }}
+                        className={cn(
+                          "p-1.5 rounded-lg transition-colors",
+                          theme === 'dark' ? "text-gray-500 hover:text-rose-400 hover:bg-rose-500/10" : "text-gray-400 hover:text-rose-600 hover:bg-rose-50"
+                        )}
+                        title="Delete layer"
+                      >
+                        <Trash size={13} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -720,7 +793,7 @@ export default function Toolbar() {
               const next = !showSizeDropdown;
               setShowSizeDropdown(next);
               if (next) {
-                setShowLayers(false);
+                setIsLayersOpen(false);
                 setShowBgPrompt(false);
                 useStore.getState().setTopMessage("Brush width parameters opened. Slide to customize or pick presets.");
               } else {
@@ -816,12 +889,12 @@ export default function Toolbar() {
 
         <button 
           onClick={() => { 
-            const next = !showLayers;
-            setShowLayers(next);
+            const next = !isLayersOpen;
+            setIsLayersOpen(next);
             if (next) {
               setShowSizeDropdown(false);
               setShowBgPrompt(false);
-              useStore.getState().setTopMessage("Whiteboard layers configured. Rearrange background and foreground strokes!");
+              useStore.getState().setTopMessage("Layers panel opened [L]. Manage independent drawing layers & visibility!");
             } else {
               useStore.getState().setTopMessage("Layers manager closed.");
             }
@@ -829,12 +902,15 @@ export default function Toolbar() {
           }}
           suppressHydrationWarning
           className={cn(
-            "p-2.5 rounded-xl transition-all text-slate-500 hover:text-slate-800 hover:bg-gray-100", 
-            showLayers && "bg-gray-100 text-slate-900 shadow-sm"
+            "p-2.5 rounded-xl transition-all text-slate-500 hover:text-slate-800 hover:bg-gray-100 relative", 
+            isLayersOpen && "bg-gray-100 text-slate-900 shadow-sm"
           )}
-          title="Layers"
+          title="Layers & Visibility [L]"
         >
           <Layers size={18} />
+          {layers.some(l => !l.visible) && (
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-amber-500 ring-2 ring-white dark:ring-gray-900" title="Some layers are currently hidden" />
+          )}
         </button>
 
         <div className="w-px h-8 mx-1 bg-slate-200" />

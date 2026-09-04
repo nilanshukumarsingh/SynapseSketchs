@@ -2,12 +2,13 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { useStore, Point, Stroke } from '@/lib/store';
+import AiTargetPreviewOverlay from '@/components/AiTargetPreviewOverlay';
 
 const ASCII_CHARS = ['#', 'a', 't', 'g', 'o', 'p', 'l', '%', '=', 'i', 'p', 'n', 'm', 'd', 'a', 'o', 'Y', 's', '@', '«', 'I', 'f', '÷', '(', '~', 'c', '1', '8', 'K', '3', 'M'];
 
 export default function Canvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { strokes, currentTool, currentColor, currentSize, addStroke, updateLastStroke, finishStroke, offset, scale, setOffset, setScale, undo, redo, backgroundImage, theme, layers, activeLayerId, asciiChar, isGenerating } = useStore();
+  const { strokes, currentTool, currentColor, currentSize, addStroke, updateLastStroke, finishStroke, offset, scale, setOffset, setScale, undo, redo, backgroundImage, theme, layers, activeLayerId, asciiChar } = useStore();
   const [isDrawing, setIsDrawing] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
   const [lastPanPoint, setLastPanPoint] = useState<Point | null>(null);
@@ -84,6 +85,8 @@ export default function Canvas() {
   }, [theme, asciiChar]);
 
   const offscreenCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const fadingRipplesRef = useRef<{ x: number; y: number; radius: number; createdAt: number }[]>([]);
+  const redrawRef = useRef<() => void>(() => {});
 
   const redraw = React.useCallback(() => {
     const canvas = canvasRef.current;
@@ -177,42 +180,90 @@ export default function Canvas() {
           offCtx.lineWidth = getLineWidth(stroke.size) * 3;
           offCtx.strokeStyle = stroke.color;
           if (stroke.points.length === 0) return;
-          offCtx.beginPath();
-          offCtx.moveTo(stroke.points[0].x, stroke.points[0].y);
-          if (stroke.points.length === 1) {
-            offCtx.lineTo(stroke.points[0].x, stroke.points[0].y);
-          } else {
-            for (let i = 1; i < stroke.points.length - 1; i++) {
-              const xc = (stroke.points[i].x + stroke.points[i + 1].x) / 2;
-              const yc = (stroke.points[i].y + stroke.points[i + 1].y) / 2;
-              offCtx.quadraticCurveTo(stroke.points[i].x, stroke.points[i].y, xc, yc);
+          
+          const baseW = getLineWidth(stroke.size) * 3;
+          const hasVaryingPressure = stroke.points.some(p => p.pressure !== undefined && p.pressure > 0 && Math.abs(p.pressure - 0.5) > 0.04);
+          
+          if (hasVaryingPressure) {
+            for (let i = 0; i < stroke.points.length - 1; i++) {
+              const p1 = stroke.points[i];
+              const p2 = stroke.points[i + 1];
+              const avgP = ((p1.pressure ?? 0.5) + (p2.pressure ?? 0.5)) / 2;
+              offCtx.lineWidth = Math.max(1, baseW * (0.35 + avgP * 1.3));
+              offCtx.beginPath();
+              offCtx.moveTo(p1.x, p1.y);
+              offCtx.lineTo(p2.x, p2.y);
+              offCtx.stroke();
             }
-            offCtx.lineTo(stroke.points[stroke.points.length - 1].x, stroke.points[stroke.points.length - 1].y);
+          } else {
+            offCtx.beginPath();
+            offCtx.moveTo(stroke.points[0].x, stroke.points[0].y);
+            if (stroke.points.length === 1) {
+              offCtx.lineTo(stroke.points[0].x, stroke.points[0].y);
+            } else {
+              for (let i = 1; i < stroke.points.length - 1; i++) {
+                const xc = (stroke.points[i].x + stroke.points[i + 1].x) / 2;
+                const yc = (stroke.points[i].y + stroke.points[i + 1].y) / 2;
+                offCtx.quadraticCurveTo(stroke.points[i].x, stroke.points[i].y, xc, yc);
+              }
+              offCtx.lineTo(stroke.points[stroke.points.length - 1].x, stroke.points[stroke.points.length - 1].y);
+            }
+            offCtx.stroke();
           }
-          offCtx.stroke();
         } else {
-          // Normal pencil etc
+          // Normal pencil, eraser, etc. with pointer pressure intensity variation
           if (stroke.points.length === 0) return;
-          offCtx.beginPath();
-          offCtx.moveTo(stroke.points[0].x, stroke.points[0].y);
+          const baseW = (stroke.tool === 'eraser' || stroke.tool === 'ai-eraser') 
+            ? getLineWidth(stroke.size) * 4 
+            : getLineWidth(stroke.size);
+
           if (stroke.points.length === 1) {
-            offCtx.lineTo(stroke.points[0].x, stroke.points[0].y);
+            const p = stroke.points[0];
+            const pr = p.pressure ?? 0.5;
+            offCtx.lineWidth = Math.max(1, baseW * (0.35 + pr * 1.3));
+            offCtx.beginPath();
+            offCtx.moveTo(p.x, p.y);
+            offCtx.lineTo(p.x, p.y);
+            offCtx.stroke();
           } else {
-            for (let i = 1; i < stroke.points.length - 1; i++) {
-              const xc = (stroke.points[i].x + stroke.points[i + 1].x) / 2;
-              const yc = (stroke.points[i].y + stroke.points[i + 1].y) / 2;
-              offCtx.quadraticCurveTo(stroke.points[i].x, stroke.points[i].y, xc, yc);
+            const hasVaryingPressure = stroke.points.some(p => p.pressure !== undefined && p.pressure > 0 && Math.abs(p.pressure - 0.5) > 0.04);
+            
+            if (hasVaryingPressure) {
+              for (let i = 0; i < stroke.points.length - 1; i++) {
+                const p1 = stroke.points[i];
+                const p2 = stroke.points[i + 1];
+                const pr1 = p1.pressure !== undefined && p1.pressure > 0 ? p1.pressure : 0.5;
+                const pr2 = p2.pressure !== undefined && p2.pressure > 0 ? p2.pressure : 0.5;
+                const avgPressure = (pr1 + pr2) / 2;
+                offCtx.lineWidth = Math.max(1, baseW * (0.35 + avgPressure * 1.3));
+                offCtx.beginPath();
+                offCtx.moveTo(p1.x, p1.y);
+                offCtx.lineTo(p2.x, p2.y);
+                offCtx.stroke();
+              }
+            } else {
+              offCtx.beginPath();
+              offCtx.moveTo(stroke.points[0].x, stroke.points[0].y);
+              for (let i = 1; i < stroke.points.length - 1; i++) {
+                const xc = (stroke.points[i].x + stroke.points[i + 1].x) / 2;
+                const yc = (stroke.points[i].y + stroke.points[i + 1].y) / 2;
+                offCtx.quadraticCurveTo(stroke.points[i].x, stroke.points[i].y, xc, yc);
+              }
+              offCtx.lineTo(stroke.points[stroke.points.length - 1].x, stroke.points[stroke.points.length - 1].y);
+              offCtx.stroke();
             }
-            offCtx.lineTo(stroke.points[stroke.points.length - 1].x, stroke.points[stroke.points.length - 1].y);
           }
           
           if (stroke.fill) {
             offCtx.fillStyle = (stroke.tool === 'eraser' || stroke.tool === 'ai-eraser') ? 'rgba(0,0,0,1)' : stroke.color;
+            offCtx.beginPath();
+            offCtx.moveTo(stroke.points[0].x, stroke.points[0].y);
+            for (let i = 1; i < stroke.points.length; i++) {
+              offCtx.lineTo(stroke.points[i].x, stroke.points[i].y);
+            }
+            offCtx.closePath();
             offCtx.fill();
-            // Also stroke the outline to avoid jaggy edges between adjacent polygons
             offCtx.stroke(); 
-          } else {
-            offCtx.stroke();
           }
         }
       });
@@ -226,9 +277,108 @@ export default function Canvas() {
       ctx.drawImage(offscreenCanvas, 0, 0);
       ctx.restore();
     });
+
+    // Draw subtle preserved highlight halo around user strokes in the vicinity of AI drawing
+    const { aiPreviewBox, aiCursor, isGenerating: isGeneratingActive } = useStore.getState();
+    if (isGeneratingActive || aiPreviewBox) {
+      let vicinityFilter = (s: Stroke) => true;
+
+      if (aiPreviewBox) {
+        const vMinX = (aiPreviewBox.x - offset.x) / scale - 120;
+        const vMaxX = (aiPreviewBox.x + aiPreviewBox.width - offset.x) / scale + 120;
+        const vMinY = (aiPreviewBox.y - offset.y) / scale - 120;
+        const vMaxY = (aiPreviewBox.y + aiPreviewBox.height - offset.y) / scale + 120;
+
+        vicinityFilter = (s: Stroke) => s.points.some(p => p.x >= vMinX && p.x <= vMaxX && p.y >= vMinY && p.y <= vMaxY);
+      } else if (aiCursor) {
+        const cX = (aiCursor.x - offset.x) / scale;
+        const cY = (aiCursor.y - offset.y) / scale;
+        vicinityFilter = (s: Stroke) => s.points.some(p => Math.hypot(p.x - cX, p.y - cY) <= 180);
+      }
+
+      const preservedStrokes = strokes.filter(s => 
+        !s.createdByAI && 
+        s.tool !== 'eraser' && 
+        s.tool !== 'ai-eraser' && 
+        s.points.length > 0 &&
+        vicinityFilter(s)
+      );
+
+      if (preservedStrokes.length > 0) {
+        ctx.save();
+        ctx.translate(offset.x, offset.y);
+        ctx.scale(scale, scale);
+
+        const pulse = 0.65 + 0.35 * Math.sin(Date.now() / 180);
+        ctx.shadowColor = theme === 'dark' ? '#38bdf8' : '#0284c7';
+        ctx.shadowBlur = 18;
+        ctx.strokeStyle = theme === 'dark' 
+          ? `rgba(56, 189, 248, ${0.55 * pulse})` 
+          : `rgba(2, 132, 199, ${0.45 * pulse})`;
+        ctx.lineWidth = 10;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        preservedStrokes.forEach(s => {
+          if (s.points.length === 0) return;
+          ctx.beginPath();
+          ctx.moveTo(s.points[0].x, s.points[0].y);
+          for (let i = 1; i < s.points.length; i++) {
+            ctx.lineTo(s.points[i].x, s.points[i].y);
+          }
+          ctx.stroke();
+        });
+
+        ctx.restore();
+      }
+    }
+
+    // Fading transition effect for eraser tool when clearing paths
+    const now = Date.now();
+    fadingRipplesRef.current = fadingRipplesRef.current.filter(r => now - r.createdAt < 350);
+
+    if (fadingRipplesRef.current.length > 0) {
+      ctx.save();
+      ctx.translate(offset.x, offset.y);
+      ctx.scale(scale, scale);
+
+      fadingRipplesRef.current.forEach(r => {
+        const elapsed = now - r.createdAt;
+        const progress = elapsed / 350; // 0 to 1
+        const alpha = (1 - progress) * 0.7;
+        const curR = r.radius * (1 + progress * 0.25);
+
+        const grad = ctx.createRadialGradient(r.x, r.y, 0, r.x, r.y, curR);
+        grad.addColorStop(0, `rgba(244, 63, 94, ${alpha * 0.35})`);
+        grad.addColorStop(0.7, `rgba(244, 63, 94, ${alpha * 0.18})`);
+        grad.addColorStop(1, 'rgba(244, 63, 94, 0)');
+
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(r.x, r.y, curR, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = `rgba(244, 63, 94, ${alpha * 0.8})`;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(r.x, r.y, curR, 0, Math.PI * 2);
+        ctx.stroke();
+      });
+
+      ctx.restore();
+    }
     
     ctx.restore();
+
+    // Schedule next frame only if ripple animations are ongoing
+    if (fadingRipplesRef.current.length > 0) {
+      requestAnimationFrame(() => redrawRef.current());
+    }
   }, [offset, scale, layers, strokes, theme, drawGrid, drawAsciiPath]);
+
+  useEffect(() => {
+    redrawRef.current = redraw;
+  }, [redraw]);
 
   useEffect(() => {
     if (backgroundImage) {
@@ -281,23 +431,34 @@ export default function Canvas() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [undo, redo]);
 
-  const getCoordinates = (e: React.MouseEvent | React.TouchEvent | MouseEvent | TouchEvent): Point | null => {
+  const getCoordinates = (e: React.PointerEvent | React.MouseEvent | React.TouchEvent | PointerEvent | MouseEvent | TouchEvent): Point | null => {
     const canvas = canvasRef.current;
     if (!canvas) return null;
     const rect = canvas.getBoundingClientRect();
     
-    let clientX, clientY;
-    if ('touches' in e) {
-      clientX = e.touches[0].clientX;
-      clientY = e.touches[0].clientY;
+    let clientX = 0;
+    let clientY = 0;
+    let pressure = 0.5;
+
+    if ('touches' in e && (e as any).touches && (e as any).touches.length > 0) {
+      clientX = (e as any).touches[0].clientX;
+      clientY = (e as any).touches[0].clientY;
+      const touch = (e as any).touches[0];
+      if (typeof touch.force === 'number' && touch.force > 0) {
+        pressure = touch.force;
+      }
     } else {
       clientX = (e as React.MouseEvent).clientX;
       clientY = (e as React.MouseEvent).clientY;
+      if ('pressure' in e && typeof (e as any).pressure === 'number' && (e as any).pressure > 0) {
+        pressure = (e as any).pressure;
+      }
     }
 
     return {
       x: (clientX - rect.left - offset.x) / scale,
-      y: (clientY - rect.top - offset.y) / scale
+      y: (clientY - rect.top - offset.y) / scale,
+      pressure
     };
   };
 
@@ -332,22 +493,24 @@ export default function Canvas() {
     }
   };
 
-  const startInteraction = (e: React.MouseEvent | React.TouchEvent) => {
+  const startInteraction = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (useStore.getState().isGenerating) {
       useStore.getState().setTopMessage("Please wait for AI to finish drawing.");
       return;
     }
     
     // Middle click, altKey, or Hand tool for panning
-    if (('button' in e && e.button === 1) || e.altKey || currentTool === 'hand') {
+    if (e.button === 1 || e.altKey || currentTool === 'hand') {
       setIsPanning(true);
-      if ('touches' in e) {
-        setLastPanPoint({ x: e.touches[0].clientX, y: e.touches[0].clientY });
-      } else {
-        setLastPanPoint({ x: e.clientX, y: e.clientY });
-      }
+      setLastPanPoint({ x: e.clientX, y: e.clientY });
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {}
       return;
     }
+
+    // Drawing only with primary button if mouse
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
 
     const activeLayer = layers.find(l => l.id === activeLayerId);
     if (activeLayer?.locked) {
@@ -358,7 +521,22 @@ export default function Canvas() {
     const point = getCoordinates(e);
     if (!point) return;
 
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {}
+
     setIsDrawing(true);
+    if (currentTool === 'eraser' || currentTool === 'ai-eraser') {
+      const baseW = getLineWidth(currentSize) * 4;
+      fadingRipplesRef.current.push({
+        x: point.x,
+        y: point.y,
+        radius: baseW / 2 + 8,
+        createdAt: Date.now()
+      });
+      requestAnimationFrame(() => redrawRef.current());
+    }
+
     addStroke({
       id: Date.now().toString(),
       tool: currentTool,
@@ -369,16 +547,10 @@ export default function Canvas() {
     });
   };
 
-  const interact = (e: React.MouseEvent | React.TouchEvent) => {
+  const interact = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (isPanning && lastPanPoint) {
-      let clientX, clientY;
-      if ('touches' in e) {
-        clientX = e.touches[0].clientX;
-        clientY = e.touches[0].clientY;
-      } else {
-        clientX = (e as React.MouseEvent).clientX;
-        clientY = (e as React.MouseEvent).clientY;
-      }
+      const clientX = e.clientX;
+      const clientY = e.clientY;
 
       setOffset(prev => ({
         x: prev.x + (clientX - lastPanPoint.x),
@@ -395,10 +567,27 @@ export default function Canvas() {
     }
     const point = getCoordinates(e);
     if (!point) return;
+
+    if (currentTool === 'eraser' || currentTool === 'ai-eraser') {
+      const baseW = getLineWidth(currentSize) * 4;
+      fadingRipplesRef.current.push({
+        x: point.x,
+        y: point.y,
+        radius: baseW / 2 + 8,
+        createdAt: Date.now()
+      });
+      requestAnimationFrame(() => redrawRef.current());
+    }
+
     updateLastStroke(point);
   };
 
-  const stopInteraction = () => {
+  const stopInteraction = (e?: React.PointerEvent<HTMLCanvasElement>) => {
+    if (e && e.currentTarget && typeof e.currentTarget.releasePointerCapture === 'function') {
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch {}
+    }
     if (isDrawing && !useStore.getState().isGenerating) {
       finishStroke();
     }
@@ -441,30 +630,17 @@ export default function Canvas() {
       <canvas
         ref={canvasRef}
         className="absolute inset-0 w-full h-full touch-none pointer-events-auto"
-        onMouseDown={startInteraction}
-        onMouseMove={interact}
-        onMouseUp={stopInteraction}
-        onMouseLeave={stopInteraction}
-        onTouchStart={startInteraction}
-        onTouchMove={interact}
-        onTouchEnd={stopInteraction}
-        onTouchCancel={stopInteraction}
+        onPointerDown={startInteraction}
+        onPointerMove={interact}
+        onPointerUp={stopInteraction}
+        onPointerCancel={stopInteraction}
+        onPointerLeave={stopInteraction}
         onWheel={handleWheel}
         style={{ backgroundColor: 'transparent', cursor: getCursor() }}
       />
       
-      {/* Premium Glassmorphic AI Painting/Blur overlay with custom micro-animations */}
-      {isGenerating && (
-        <div 
-          className="absolute inset-x-0 inset-y-0 pointer-events-none select-none z-10 animate-fade-in"
-        >
-          {/* Top ambient blurred border bar */}
-          <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-indigo-500/15 via-indigo-500/5 to-transparent backdrop-blur-md border-b border-indigo-500/10 pointer-events-none" />
-          
-          {/* Bottom ambient blurred border bar */}
-          <div className="absolute bottom-0 left-0 w-full h-32 bg-gradient-to-t from-indigo-500/15 via-indigo-500/5 to-transparent backdrop-blur-md border-t border-indigo-500/10 pointer-events-none" />
-        </div>
-      )}
+      {/* AI Target Bounding Box Preview Overlay & Confirmation Popup */}
+      <AiTargetPreviewOverlay />
     </div>
   );
 }
