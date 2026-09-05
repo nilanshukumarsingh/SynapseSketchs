@@ -18,7 +18,8 @@ import {
   Redo2, 
   ZoomIn, 
   Move,
-  HelpCircle
+  HelpCircle,
+  Stamp
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -170,6 +171,16 @@ export default function KeyboardShortcuts({ onTriggerClear }: KeyboardShortcutsP
           break;
         }
 
+        // 's' for Stamp tool
+        case 's': {
+          e.preventDefault();
+          setTool('stamp');
+          useStore.getState().setIsStampPickerOpen(true);
+          setTopMessage("Stamp tool selected [S] 📐 Shape picker opened.");
+          playSound(580, 'sine', 0.08);
+          break;
+        }
+
         // 'h' for Hand / Pan tool
         case 'h': {
           e.preventDefault();
@@ -223,6 +234,7 @@ export default function KeyboardShortcuts({ onTriggerClear }: KeyboardShortcutsP
       title: "Drawing & Tools",
       items: [
         { keyLabel: "P", description: "Pencil / Freehand Drawing", icon: <Pencil size={13} className="text-amber-500" /> },
+        { keyLabel: "S", description: "Stamp pre-defined shapes & icons", icon: <Stamp size={13} className="text-violet-500" /> },
         { keyLabel: "E", description: "Eraser with friction ripple", icon: <Eraser size={13} className="text-rose-500" /> },
         { keyLabel: "H", description: "Hand tool (Pan & move canvas)", icon: <Hand size={13} className="text-blue-500" /> },
         { keyLabel: "A", description: "AI Generative Assistant", icon: <Sparkles size={13} className="text-indigo-500" /> },
@@ -258,7 +270,7 @@ export default function KeyboardShortcuts({ onTriggerClear }: KeyboardShortcutsP
         }}
         title="Keyboard Shortcuts (Press '?')"
         className={cn(
-          "fixed bottom-4 right-4 z-40 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold shadow-lg backdrop-blur-md border transition-all duration-200 active:scale-95 group",
+          "fixed bottom-4 right-4 z-40 hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold shadow-lg backdrop-blur-md border transition-all duration-200 active:scale-95 group",
           theme === 'dark'
             ? "bg-slate-900/80 hover:bg-slate-800 text-slate-300 border-slate-700/60 hover:text-white"
             : "bg-white/90 hover:bg-white text-slate-700 border-slate-200/80 hover:text-slate-950 shadow-slate-200/50"

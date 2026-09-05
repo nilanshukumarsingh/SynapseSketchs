@@ -9,6 +9,9 @@ import CommentOverlay from '@/components/CommentOverlay';
 import Minimap from '@/components/Minimap';
 import ExportModal from '@/components/ExportModal';
 import KeyboardShortcuts from '@/components/KeyboardShortcuts';
+import LayerSidebar from '@/components/LayerSidebar';
+import DraftRecoveryPrompt from '@/components/DraftRecoveryPrompt';
+import StampPicker from '@/components/StampPicker';
 import { useStore } from '@/lib/store';
 import { ChevronLeft, Trash, Download, Smile, UserPlus, Sparkles, Wand2, Loader2, Settings, X } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
@@ -250,6 +253,12 @@ export default function Home() {
       {/* Toolbar */}
       <Toolbar />
 
+      {/* Dedicated Layer Management Sidebar */}
+      <LayerSidebar />
+
+      {/* Periodic Canvas Draft Recovery Prompt */}
+      <DraftRecoveryPrompt />
+
       {/* Minimap Overlay (rendered dynamically when toggled on) */}
       <Minimap />
 
@@ -388,6 +397,9 @@ export default function Home() {
       )}
       {/* Export Modal */}
       <ExportModal />
+
+      {/* Stamp Tool Shape & Wireframe Library Picker */}
+      <StampPicker />
 
       {/* Keyboard Shortcuts Listener */}
       <KeyboardShortcuts onTriggerClear={handleClear} />

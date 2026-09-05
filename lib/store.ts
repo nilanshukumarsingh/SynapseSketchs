@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { io, Socket } from 'socket.io-client';
 
-export type Tool = 'pencil' | 'eraser' | 'ascii' | 'ai-colorize' | 'ai-eraser' | 'hand' | 'text';
+export type Tool = 'pencil' | 'eraser' | 'ascii' | 'ai-colorize' | 'ai-eraser' | 'hand' | 'text' | 'stamp';
 export type Size = 'thin' | 'medium' | 'thick' | number;
 export type Theme = 'light' | 'dark';
 
@@ -10,6 +10,7 @@ export interface Layer {
   name: string;
   visible: boolean;
   locked: boolean;
+  opacity?: number;
 }
 
 export interface Point {
@@ -28,6 +29,9 @@ export interface Stroke {
   text?: string;
   fill?: boolean;
   createdByAI?: boolean;
+  stampId?: string;
+  stampScale?: number;
+  stampRotation?: number;
 }
 
 export interface Comment {
@@ -132,6 +136,13 @@ interface AppState {
   reorderLayers: (layers: Layer[]) => void;
   toggleLayerVisibility: (layerId: string) => void;
   toggleLayerLock: (layerId: string) => void;
+  renameLayer: (layerId: string, newName: string) => void;
+  setLayerOpacity: (layerId: string, opacity: number) => void;
+  duplicateLayer: (layerId: string) => void;
+  clearLayer: (layerId: string) => void;
+  moveLayer: (layerId: string, direction: 'up' | 'down') => void;
+  showAllLayers: () => void;
+  hideAllLayers: () => void;
   setAsciiChar: (char: string) => void;
   setAiCursor: (point: Point | null) => void;
   setIsGenerating: (val: boolean) => void;
@@ -143,6 +154,17 @@ interface AppState {
   setIsAiOpen: (val: boolean | ((prev: boolean) => boolean)) => void;
   isLayersOpen: boolean;
   setIsLayersOpen: (val: boolean | ((prev: boolean) => boolean)) => void;
+  selectedStampId: string;
+  setSelectedStampId: (id: string) => void;
+  stampFilled: boolean;
+  setStampFilled: (val: boolean | ((prev: boolean) => boolean)) => void;
+  stampScale: number;
+  setStampScale: (scale: number | ((prev: number) => number)) => void;
+  stampRotation: number;
+  setStampRotation: (rot: number | ((prev: number) => number)) => void;
+  isStampPickerOpen: boolean;
+  setIsStampPickerOpen: (val: boolean | ((prev: boolean) => boolean)) => void;
+  restoreDraft: (draft: { strokes: Stroke[]; layers?: Layer[]; activeLayerId?: string; backgroundImage?: string | null }) => void;
 }
 
 export const useStore = create<AppState>((set, get) => ({
@@ -193,6 +215,16 @@ export const useStore = create<AppState>((set, get) => ({
   setIsAiOpen: (val) => set((state) => ({ isAiOpen: typeof val === 'function' ? val(state.isAiOpen) : val })),
   isLayersOpen: false,
   setIsLayersOpen: (val) => set((state) => ({ isLayersOpen: typeof val === 'function' ? val(state.isLayersOpen) : val })),
+  selectedStampId: 'star',
+  setSelectedStampId: (id) => set({ selectedStampId: id }),
+  stampFilled: false,
+  setStampFilled: (val) => set((state) => ({ stampFilled: typeof val === 'function' ? val(state.stampFilled) : val })),
+  stampScale: 1,
+  setStampScale: (scale) => set((state) => ({ stampScale: typeof scale === 'function' ? scale(state.stampScale) : scale })),
+  stampRotation: 0,
+  setStampRotation: (rot) => set((state) => ({ stampRotation: typeof rot === 'function' ? rot(state.stampRotation) : rot })),
+  isStampPickerOpen: false,
+  setIsStampPickerOpen: (val) => set((state) => ({ isStampPickerOpen: typeof val === 'function' ? val(state.isStampPickerOpen) : val })),
   aiPreviewBox: null,
   setAiPreviewBox: (box) => set({ aiPreviewBox: box }),
   updateAiPreviewBoxPos: (x, y, width, height) => set((state) => ({
@@ -434,6 +466,22 @@ export const useStore = create<AppState>((set, get) => ({
     }
     return { strokes: [], comments: [], history: newHistory, historyStep: newHistory.length - 1, latestHumanStrokeStartIndex: 0 };
   }),
+  restoreDraft: (draft) => set((state) => {
+    const newLayers = draft.layers && draft.layers.length > 0 ? draft.layers : state.layers;
+    const newActiveId = draft.activeLayerId && newLayers.some(l => l.id === draft.activeLayerId)
+      ? draft.activeLayerId
+      : (newLayers[0]?.id || state.activeLayerId);
+    const newStrokes = [...draft.strokes];
+    return {
+      strokes: newStrokes,
+      layers: newLayers,
+      activeLayerId: newActiveId,
+      backgroundImage: draft.backgroundImage !== undefined ? draft.backgroundImage : state.backgroundImage,
+      history: [newStrokes],
+      historyStep: 0,
+      latestHumanStrokeStartIndex: newStrokes.length
+    };
+  }),
   eraseLatestHumanStrokes: () => set((state) => {
     const strokes = state.strokes;
     if (strokes.length === 0) return {};
@@ -530,6 +578,68 @@ export const useStore = create<AppState>((set, get) => ({
   })),
   toggleLayerLock: (layerId) => set((state) => ({
     layers: state.layers.map(l => l.id === layerId ? { ...l, locked: !l.locked } : l)
+  })),
+  renameLayer: (layerId, newName) => set((state) => ({
+    layers: state.layers.map(l => l.id === layerId ? { ...l, name: newName.trim() || l.name } : l)
+  })),
+  setLayerOpacity: (layerId, opacity) => set((state) => ({
+    layers: state.layers.map(l => l.id === layerId ? { ...l, opacity: Math.max(0.05, Math.min(1, opacity)) } : l)
+  })),
+  duplicateLayer: (layerId) => set((state) => {
+    const layer = state.layers.find(l => l.id === layerId);
+    if (!layer) return state;
+    const newId = `layer-${Date.now()}`;
+    const newLayer: Layer = {
+      id: newId,
+      name: `${layer.name} (Copy)`,
+      visible: true,
+      locked: false,
+      opacity: layer.opacity ?? 1
+    };
+    // Duplicate all strokes belonging to the original layer
+    const sourceStrokes = state.strokes.filter(s => (s.layerId || 'layer-fg') === layerId);
+    const duplicatedStrokes: Stroke[] = sourceStrokes.map(s => ({
+      ...s,
+      id: `stroke-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      layerId: newId,
+      points: s.points.map(p => ({ ...p }))
+    }));
+    const newStrokes = [...state.strokes, ...duplicatedStrokes];
+    const newHistory = state.history.slice(0, state.historyStep + 1);
+    newHistory.push(newStrokes);
+    return {
+      layers: [...state.layers, newLayer],
+      activeLayerId: newId,
+      strokes: newStrokes,
+      history: newHistory,
+      historyStep: newHistory.length - 1
+    };
+  }),
+  clearLayer: (layerId) => set((state) => {
+    const newStrokes = state.strokes.filter(s => (s.layerId || 'layer-fg') !== layerId);
+    const newHistory = state.history.slice(0, state.historyStep + 1);
+    newHistory.push(newStrokes);
+    return {
+      strokes: newStrokes,
+      history: newHistory,
+      historyStep: newHistory.length - 1
+    };
+  }),
+  moveLayer: (layerId, direction) => set((state) => {
+    const idx = state.layers.findIndex(l => l.id === layerId);
+    if (idx === -1) return state;
+    const targetIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (targetIdx < 0 || targetIdx >= state.layers.length) return state;
+    const newLayers = [...state.layers];
+    const [moved] = newLayers.splice(idx, 1);
+    newLayers.splice(targetIdx, 0, moved);
+    return { layers: newLayers };
+  }),
+  showAllLayers: () => set((state) => ({
+    layers: state.layers.map(l => ({ ...l, visible: true }))
+  })),
+  hideAllLayers: () => set((state) => ({
+    layers: state.layers.map(l => ({ ...l, visible: false }))
   })),
   setAsciiChar: (char) => set({ asciiChar: char }),
   setAiCursor: (point) => set({ aiCursor: point }),

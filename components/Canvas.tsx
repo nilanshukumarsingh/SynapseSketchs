@@ -4,6 +4,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useStore, Point, Stroke } from '@/lib/store';
 import AiTargetPreviewOverlay from '@/components/AiTargetPreviewOverlay';
 import { tactileAudio } from '@/lib/tactile-audio';
+import { getStampDefinition } from '@/lib/stamps';
+import { playSound } from '@/lib/ai-handler';
 
 const ASCII_CHARS = ['#', 'a', 't', 'g', 'o', 'p', 'l', '%', '=', 'i', 'p', 'n', 'm', 'd', 'a', 'o', 'Y', 's', '@', '«', 'I', 'f', '÷', '(', '~', 'c', '1', '8', 'K', '3', 'M'];
 
@@ -14,6 +16,7 @@ export default function Canvas() {
   const [isPanning, setIsPanning] = useState(false);
   const [lastPanPoint, setLastPanPoint] = useState<Point | null>(null);
   const bgImageRef = useRef<HTMLImageElement | null>(null);
+  const hoverCoordRef = useRef<Point | null>(null);
 
   const getLineWidth = (size: string | number) => {
     if (typeof size === 'number') return size;
@@ -23,6 +26,16 @@ export default function Canvas() {
       case 'thick': return 12;
       default: return 6;
     }
+  };
+
+  const getPressureLineWidth = (baseW: number, pressure?: number): number => {
+    const p = typeof pressure === 'number' && pressure > 0 ? pressure : 0.5;
+    // Dynamic non-linear curve for sketching:
+    // Light stroke (p ~ 0.15): ~0.42x width
+    // Balanced stroke (p ~ 0.50): ~1.00x width
+    // Deep stroke (p ~ 0.90): ~1.85x width
+    const factor = 0.25 + 1.75 * Math.pow(Math.min(1, Math.max(0.05, p)), 1.25);
+    return Math.max(0.8, baseW * factor);
   };
 
   const drawGrid = React.useCallback((ctx: CanvasRenderingContext2D, width: number, height: number) => {
@@ -88,6 +101,9 @@ export default function Canvas() {
   const offscreenCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const fadingRipplesRef = useRef<{ x: number; y: number; radius: number; createdAt: number }[]>([]);
   const redrawRef = useRef<() => void>(() => {});
+  const smoothedPressureRef = useRef<number>(0.5);
+  const lastPointTimeRef = useRef<number>(0);
+  const lastPointCoordRef = useRef<{ x: number; y: number } | null>(null);
 
   const redraw = React.useCallback(() => {
     const canvas = canvasRef.current;
@@ -175,6 +191,27 @@ export default function Canvas() {
 
         if (stroke.tool === 'ascii') {
           drawAsciiPath(offCtx, stroke);
+        } else if (stroke.tool === 'stamp') {
+          if (stroke.points.length > 0) {
+            const p0 = stroke.points[0];
+            const stampDef = getStampDefinition(stroke.stampId);
+            let size = 56 * (stroke.stampScale || 1);
+            let rotation = stroke.stampRotation || 0;
+
+            if (stroke.points.length > 1) {
+              const p1 = stroke.points[stroke.points.length - 1];
+              const dx = p1.x - p0.x;
+              const dy = p1.y - p0.y;
+              const dist = Math.hypot(dx, dy);
+              if (dist > 8) {
+                size = Math.max(16, dist * 2);
+                rotation = Math.atan2(dy, dx);
+              }
+            }
+
+            offCtx.lineWidth = getLineWidth(stroke.size);
+            stampDef.draw(offCtx, p0.x, p0.y, size, stroke.color, !!stroke.fill, rotation);
+          }
         } else if (stroke.tool === 'ai-colorize') {
           // Drawing behind existing content on this layer
           offCtx.globalCompositeOperation = 'destination-over';
@@ -183,14 +220,14 @@ export default function Canvas() {
           if (stroke.points.length === 0) return;
           
           const baseW = getLineWidth(stroke.size) * 3;
-          const hasVaryingPressure = stroke.points.some(p => p.pressure !== undefined && p.pressure > 0 && Math.abs(p.pressure - 0.5) > 0.04);
+          const hasVaryingPressure = stroke.points.some(p => p.pressure !== undefined && p.pressure > 0 && Math.abs(p.pressure - 0.5) > 0.02);
           
           if (hasVaryingPressure) {
             for (let i = 0; i < stroke.points.length - 1; i++) {
               const p1 = stroke.points[i];
               const p2 = stroke.points[i + 1];
               const avgP = ((p1.pressure ?? 0.5) + (p2.pressure ?? 0.5)) / 2;
-              offCtx.lineWidth = Math.max(1, baseW * (0.35 + avgP * 1.3));
+              offCtx.lineWidth = getPressureLineWidth(baseW, avgP);
               offCtx.beginPath();
               offCtx.moveTo(p1.x, p1.y);
               offCtx.lineTo(p2.x, p2.y);
@@ -220,14 +257,14 @@ export default function Canvas() {
 
           if (stroke.points.length === 1) {
             const p = stroke.points[0];
-            const pr = p.pressure ?? 0.5;
-            offCtx.lineWidth = Math.max(1, baseW * (0.35 + pr * 1.3));
+            const w = getPressureLineWidth(baseW, p.pressure);
+            offCtx.lineWidth = w;
             offCtx.beginPath();
-            offCtx.moveTo(p.x, p.y);
-            offCtx.lineTo(p.x, p.y);
-            offCtx.stroke();
+            offCtx.arc(p.x, p.y, Math.max(0.5, w / 2), 0, Math.PI * 2);
+            offCtx.fillStyle = (stroke.tool === 'eraser' || stroke.tool === 'ai-eraser') ? 'rgba(0,0,0,1)' : stroke.color;
+            offCtx.fill();
           } else {
-            const hasVaryingPressure = stroke.points.some(p => p.pressure !== undefined && p.pressure > 0 && Math.abs(p.pressure - 0.5) > 0.04);
+            const hasVaryingPressure = stroke.points.some(p => p.pressure !== undefined && p.pressure > 0 && Math.abs(p.pressure - 0.5) > 0.02);
             
             if (hasVaryingPressure) {
               for (let i = 0; i < stroke.points.length - 1; i++) {
@@ -236,13 +273,14 @@ export default function Canvas() {
                 const pr1 = p1.pressure !== undefined && p1.pressure > 0 ? p1.pressure : 0.5;
                 const pr2 = p2.pressure !== undefined && p2.pressure > 0 ? p2.pressure : 0.5;
                 const avgPressure = (pr1 + pr2) / 2;
-                offCtx.lineWidth = Math.max(1, baseW * (0.35 + avgPressure * 1.3));
+                offCtx.lineWidth = getPressureLineWidth(baseW, avgPressure);
                 offCtx.beginPath();
                 offCtx.moveTo(p1.x, p1.y);
                 offCtx.lineTo(p2.x, p2.y);
                 offCtx.stroke();
               }
             } else {
+              offCtx.lineWidth = baseW;
               offCtx.beginPath();
               offCtx.moveTo(stroke.points[0].x, stroke.points[0].y);
               for (let i = 1; i < stroke.points.length - 1; i++) {
@@ -271,10 +309,11 @@ export default function Canvas() {
 
       offCtx.restore();
 
-      // Draw the offscreen canvas onto the main canvas without double-transform
+      // Draw the offscreen canvas onto the main canvas with layer opacity
       ctx.save();
       ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform to identity
       ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = typeof layer.opacity === 'number' ? Math.max(0.05, Math.min(1, layer.opacity)) : 1;
       ctx.drawImage(offscreenCanvas, 0, 0);
       ctx.restore();
     });
@@ -368,6 +407,22 @@ export default function Canvas() {
 
       ctx.restore();
     }
+
+    // Ghost preview for stamp tool when hovering over canvas
+    if (currentTool === 'stamp' && hoverCoordRef.current && !isDrawing) {
+      const hp = hoverCoordRef.current;
+      const { selectedStampId, stampFilled, stampScale, stampRotation, currentColor: curCol } = useStore.getState();
+      const stampDef = getStampDefinition(selectedStampId);
+      const previewSize = 56 * (stampScale || 1);
+
+      ctx.save();
+      ctx.translate(offset.x, offset.y);
+      ctx.scale(scale, scale);
+      ctx.globalAlpha = 0.45;
+      ctx.setLineDash([4, 4]);
+      stampDef.draw(ctx, hp.x, hp.y, previewSize, curCol, stampFilled, stampRotation);
+      ctx.restore();
+    }
     
     ctx.restore();
 
@@ -375,7 +430,7 @@ export default function Canvas() {
     if (fadingRipplesRef.current.length > 0) {
       requestAnimationFrame(() => redrawRef.current());
     }
-  }, [offset, scale, layers, strokes, theme, drawGrid, drawAsciiPath]);
+  }, [offset, scale, layers, strokes, theme, currentTool, isDrawing, drawGrid, drawAsciiPath]);
 
   useEffect(() => {
     redrawRef.current = redraw;
@@ -526,6 +581,19 @@ export default function Canvas() {
       e.currentTarget.setPointerCapture(e.pointerId);
     } catch {}
 
+    const now = performance.now();
+    lastPointTimeRef.current = now;
+    lastPointCoordRef.current = { x: point.x, y: point.y };
+
+    let initialPressure = 0.5;
+    if (typeof (e as any).pressure === 'number' && (e as any).pressure > 0) {
+      initialPressure = (e as any).pressure;
+    } else if (e.pointerType === 'mouse') {
+      initialPressure = 0.38;
+    }
+    smoothedPressureRef.current = initialPressure;
+    point.pressure = initialPressure;
+
     setIsDrawing(true);
     if (settings.audioFeedback !== false) {
       tactileAudio.onPointerDown(currentTool, point.pressure);
@@ -539,6 +607,23 @@ export default function Canvas() {
         createdAt: Date.now()
       });
       requestAnimationFrame(() => redrawRef.current());
+    }
+
+    if (currentTool === 'stamp') {
+      const { selectedStampId, stampFilled, stampScale, stampRotation } = useStore.getState();
+      addStroke({
+        id: Date.now().toString(),
+        tool: 'stamp',
+        color: currentColor,
+        size: currentSize,
+        points: [point],
+        layerId: activeLayerId,
+        stampId: selectedStampId,
+        fill: stampFilled,
+        stampScale: stampScale,
+        stampRotation: stampRotation
+      });
+      return;
     }
 
     addStroke({
@@ -564,7 +649,16 @@ export default function Canvas() {
       return;
     }
 
-    if (!isDrawing) return;
+    if (!isDrawing) {
+      const pt = getCoordinates(e);
+      if (pt) {
+        hoverCoordRef.current = pt;
+        if (currentTool === 'stamp') {
+          redrawRef.current();
+        }
+      }
+      return;
+    }
     if (useStore.getState().isGenerating) {
       setIsDrawing(false);
       tactileAudio.onPointerUp();
@@ -572,6 +666,30 @@ export default function Canvas() {
     }
     const point = getCoordinates(e);
     if (!point) return;
+
+    const now = performance.now();
+    const dt = Math.max(1, now - lastPointTimeRef.current);
+
+    const isPen = e.pointerType === 'pen';
+    const rawPressure = typeof (e as any).pressure === 'number' ? (e as any).pressure : 0.5;
+
+    if (isPen || (rawPressure > 0 && Math.abs(rawPressure - 0.5) > 0.02)) {
+      // Direct stylus pointer pressure (Apple Pencil, Surface Pen, Wacom, etc.)
+      smoothedPressureRef.current = smoothedPressureRef.current * 0.3 + rawPressure * 0.7;
+    } else if (lastPointCoordRef.current) {
+      // Dynamic velocity-sensitive sketching for mouse/trackpad:
+      // Fast flick = lighter/tapered line; Slow deliberate movement = rich ink deposit
+      const dx = point.x - lastPointCoordRef.current.x;
+      const dy = point.y - lastPointCoordRef.current.y;
+      const dist = Math.hypot(dx, dy);
+      const speed = dist / dt; // px/ms
+      const targetPressure = Math.max(0.22, Math.min(0.88, 0.74 - Math.min(0.48, speed * 0.28)));
+      smoothedPressureRef.current = smoothedPressureRef.current * 0.65 + targetPressure * 0.35;
+    }
+
+    point.pressure = smoothedPressureRef.current;
+    lastPointTimeRef.current = now;
+    lastPointCoordRef.current = { x: point.x, y: point.y };
 
     if (settings.audioFeedback !== false) {
       tactileAudio.onPointerMove(point, currentTool, point.pressure);
@@ -600,10 +718,18 @@ export default function Canvas() {
     }
     if (isDrawing && !useStore.getState().isGenerating) {
       finishStroke();
+      if (currentTool === 'stamp') {
+        const { selectedStampId } = useStore.getState();
+        const stampDef = getStampDefinition(selectedStampId);
+        useStore.getState().setTopMessage(`Placed ${stampDef.name} stamp on canvas 📌`);
+        playSound(680, 'triangle', 0.08);
+      }
     }
     setIsDrawing(false);
     setIsPanning(false);
     setLastPanPoint(null);
+    lastPointCoordRef.current = null;
+    smoothedPressureRef.current = 0.5;
   };
 
   // Custom cursor based on tool
@@ -623,6 +749,8 @@ export default function Canvas() {
 
     if (currentTool === 'pencil') {
       return createSvgCursor(`<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" fill="${cursorFill}" stroke="${cursorColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />`, 2, 22);
+    } else if (currentTool === 'stamp') {
+      return createSvgCursor(`<path d="M5 22h14M5 18h14M10 14h4l1.5-6h-7L10 14Z" fill="${cursorFill}" stroke="${cursorColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="5" r="2" fill="${cursorColor}"/>`, 12, 18);
     } else if (currentTool === 'eraser') {
       return createSvgCursor(`<path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21" fill="${cursorFill}" stroke="${cursorColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M22 21H7" stroke="${cursorColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="m5 11 9 9" stroke="${cursorColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`, 2, 22);
     } else if (currentTool === 'ai-colorize') {
@@ -644,7 +772,11 @@ export default function Canvas() {
         onPointerMove={interact}
         onPointerUp={stopInteraction}
         onPointerCancel={stopInteraction}
-        onPointerLeave={stopInteraction}
+        onPointerLeave={(e) => {
+          hoverCoordRef.current = null;
+          stopInteraction(e);
+          redrawRef.current();
+        }}
         onWheel={handleWheel}
         style={{ backgroundColor: 'transparent', cursor: getCursor() }}
       />

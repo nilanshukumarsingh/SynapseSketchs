@@ -6,6 +6,7 @@ import { X, Download, FileImage, Layers, Sparkles, Check, Image as ImageIcon, Sl
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { playSound } from '@/lib/ai-handler';
+import { getStampDefinition } from '@/lib/stamps';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -119,6 +120,27 @@ export default function ExportModal() {
       targetStrokes.forEach(stroke => {
         if (stroke.points.length === 0) return;
         if (stroke.tool === 'eraser' || stroke.tool === 'ai-eraser') return; // Vector strokes skip eraser nodes already recalculated
+
+        if (stroke.tool === 'stamp') {
+          const p0 = stroke.points[0];
+          const stampDef = getStampDefinition(stroke.stampId);
+          let size = 56 * (stroke.stampScale || 1);
+          let rotation = stroke.stampRotation || 0;
+
+          if (stroke.points.length > 1) {
+            const p1 = stroke.points[stroke.points.length - 1];
+            const dx = p1.x - p0.x;
+            const dy = p1.y - p0.y;
+            const dist = Math.hypot(dx, dy);
+            if (dist > 8) {
+              size = Math.max(16, dist * 2);
+              rotation = Math.atan2(dy, dx);
+            }
+          }
+
+          svgContent += `    ${stampDef.toSvg(p0.x, p0.y, size, stroke.color, !!stroke.fill, rotation)}\n`;
+          return;
+        }
 
         const sizeVal = typeof stroke.size === 'number' 
           ? stroke.size 
