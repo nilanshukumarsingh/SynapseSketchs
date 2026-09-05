@@ -611,6 +611,7 @@ export default function Canvas() {
 
     if (currentTool === 'stamp') {
       const { selectedStampId, stampFilled, stampScale, stampRotation } = useStore.getState();
+      setIsDrawing(true);
       addStroke({
         id: Date.now().toString(),
         tool: 'stamp',

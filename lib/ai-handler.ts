@@ -363,21 +363,10 @@ CRITICAL USER-CONFIRMED TARGET BOUNDING BOX:
 
       recentStrokeInfo = `
 CRITICAL BOUNDED WORKSPACE LIMITS:
-- The user's newest/latest messy hand-drawn sketch that you MUST beautify/complete is located strictly inside the box: X: [${Math.round(pMinX)} to ${Math.round(pMaxX)}] (Width: ${w}) and Y: [${Math.round(pMinY)} to ${Math.round(pMaxY)}] (Height: ${h}).
-- Your task is to ONLY beautify/replace the drawing inside this SPECIFIC bounding box. DO NOT edit, erase, draw over, or touch any other area of the canvas outside this bounding box.
-- Since the user's hand-drawn lines inside this bounding box are messy, you MUST prepend an eraser rectangle at the very beginning of your 'strokes' array matching this boundary EXACTLY to wipe their lines before placing your pristine SVG shape there. Example:
-  {
-    "tool": "eraser",
-    "color": "${theme === 'dark' ? '#0f1115' : '#ffffff'}",
-    "size": "thick",
-    "shapeType": "rectangle",
-    "fill": true,
-    "x": ${Math.round(pMinX - 15)},
-    "y": ${Math.round(pMinY - 15)},
-    "width": ${w + 30},
-    "height": ${h + 30}
-  }
-- PRESERVATION MANDATE: There may be other pristine drawings already on the canvas (like a car drawn previously by AI). You are strictly FORBIDDEN from modifying, erasing, or overlaying them! Leave them in place. Focus 100% of your strokes and surgical erasing ONLY on the bounding box of the user's latest sketch [X: ${Math.round(pMinX)} to ${Math.round(pMaxX)}, Y: ${Math.round(pMinY)} to ${Math.round(pMaxY)}].
+- The user's newest/latest drawing is located inside the box: X: [${Math.round(pMinX)} to ${Math.round(pMaxX)}] (Width: ${w}) and Y: [${Math.round(pMinY)} to ${Math.round(pMaxY)}] (Height: ${h}).
+- Your task is to beautify, complete, or draw artwork matching this area or prompt.
+- DO NOT output any eraser strokes. DO NOT wipe or remove existing drawings or stamps.
+- PRESERVATION MANDATE: There may be other drawings or stamps already on the canvas. Leave them in place. Focus your new strokes in the designated area.
 `;
     }
   }
@@ -466,7 +455,7 @@ DIRECTIONS:
 1. RECOGNITION & PLAN: Detail your observations in "thoughts". What did the user draw? What do they want? State your precise strategy, locating the bounding boxes.
 2. SINGLE OBJECT RULE: When the user asks to draw a requested single object (like a car, bike, house, flower, dog, cat, etc.), generate EXACTLY ONE stroke object in the 'strokes' array! DO NOT repeat the stroke object multiple times, do NOT draw 3 cars or duplicate shapes!
 3. IN-PLACE COMPLETION vs NEW OBJECTS:
-   - If a CRITICAL BOUNDED WORKSPACE LIMITS box is provided (the user drew a messy hand sketch), scale and align your shapes inside that box and prepend an eraser stroke ('tool': "eraser", 'shapeType': "rectangle") FIRST to wipe their messy lines.
+   - If a CRITICAL BOUNDED WORKSPACE LIMITS box is provided, scale and align your shapes inside that box to beautify and complete the artwork. DO NOT output any eraser strokes!
    - If NO bounded workspace limits are provided (user typed a text command like "draw a bike to go with your car"), DO NOT use an eraser stroke! Do NOT overwrite or erase existing artwork! Instead, specify explicit "x" and "y" coordinates to place the new object in open space next to existing drawings!
 4. COLORS & SIZES: Use the ACTIVE SELECTED COLOR (${currentColor}) and ACTIVE SELECTED SIZE (${currentSize}) by default for new strokes unless the user explicitly asks for a different color or brush size.
 5. MAGIC ERASER: If tasked with erasing, you MUST use the tool="eraser" property. Do not attempt to draw background-colored shapes.
@@ -741,15 +730,16 @@ DIRECTIONS:
           }
           data.strokes = filteredStrokes;
 
-          if (hasLatestHumanBbox && data.strokes.length > 0) {
+          // Do not allow unsolicited eraser strokes unless user is actively using the ai-eraser tool
+          if (currentTool !== 'ai-eraser') {
+            data.strokes = data.strokes.filter((s: any) => s.tool !== 'eraser' && s.tool !== 'ai-eraser');
+          }
+
+          // Only perform stroke removal if the user explicitly triggered the AI Eraser tool
+          if (currentTool === 'ai-eraser' && hasLatestHumanBbox && data.strokes.length > 0) {
             useStore.setState((state) => {
               let newStrokes = state.strokes;
-              // Remove the user's messy hand strokes/selection rectangle from memory
-              if (latestHumanStrokes.length > 0) {
-                const targetIds = new Set(latestHumanStrokes.map(s => s.id));
-                newStrokes = newStrokes.filter(s => !targetIds.has(s.id));
-              }
-              // Cleanly erase any messy strokes/points inside the user's sketch bounding box
+              // Cleanly erase messy strokes inside the sketch bounding box, but KEEP stamps and AI artwork intact
               const margin = 20;
               const sc = scale || 1;
               const wMinX = (pMinX - offset.x) / sc;
@@ -757,7 +747,7 @@ DIRECTIONS:
               const wMinY = (pMinY - offset.y) / sc;
               const wMaxY = (pMaxY - offset.y) / sc;
               newStrokes = newStrokes.filter((str) => {
-                if (str.createdByAI) return true; // Keep previous pristine AI drawings outside box
+                if (str.createdByAI || str.tool === 'stamp') return true;
                 const overlaps = str.points.some((pt) =>
                   pt.x >= wMinX - margin && pt.x <= wMaxX + margin &&
                   pt.y >= wMinY - margin && pt.y <= wMaxY + margin

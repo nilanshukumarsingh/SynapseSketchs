@@ -390,10 +390,65 @@ export const useStore = create<AppState>((set, get) => ({
 
       // Recalculate prior strokes: split and prune node points that fall within eraser radius
       const recalculatedStrokes: Stroke[] = [];
+      const eraserLayer = lastStroke.layerId || 'layer-fg';
+
       for (let i = 0; i < currentStrokes.length - 1; i++) {
         const s = currentStrokes[i];
         if (s.tool === 'eraser' || s.tool === 'ai-eraser') {
           // Do not keep old eraser strokes in vector history
+          continue;
+        }
+
+        const sLayer = s.layerId || 'layer-fg';
+        // Eraser only operates on strokes belonging to the same layer
+        if (sLayer !== eraserLayer) {
+          recalculatedStrokes.push(s);
+          continue;
+        }
+
+        // Special handling for stamp tool: determine if eraser path intersects stamp boundary
+        if (s.tool === 'stamp') {
+          const p0 = s.points[0];
+          if (!p0) continue;
+          let stampSize = 56 * (s.stampScale || 1);
+          if (s.points.length > 1) {
+            const p1 = s.points[s.points.length - 1];
+            const dist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+            if (dist > 8) stampSize = Math.max(16, dist * 2);
+          }
+          const stampRadius = stampSize / 2;
+          const hitRadius = eraserRadius + stampRadius;
+          const hitRadiusSq = hitRadius * hitRadius;
+
+          let isStampErased = false;
+          for (let j = 0; j < eraserPts.length; j++) {
+            const ePt = eraserPts[j];
+            const dx = p0.x - ePt.x;
+            const dy = p0.y - ePt.y;
+            if (dx * dx + dy * dy <= hitRadiusSq) {
+              isStampErased = true;
+              break;
+            }
+            if (j > 0) {
+              const prev = eraserPts[j - 1];
+              if (distToSegmentSq(p0.x, p0.y, prev.x, prev.y, ePt.x, ePt.y) <= hitRadiusSq) {
+                isStampErased = true;
+                break;
+              }
+            }
+          }
+
+          if (!isStampErased) {
+            recalculatedStrokes.push(s);
+          }
+          continue;
+        }
+
+        // Single-point strokes (tapped dots): preserve if not erased
+        if (s.points.length === 1) {
+          if (!isPointErased(s.points[0])) {
+            recalculatedStrokes.push(s);
+          }
           continue;
         }
 
@@ -420,7 +475,6 @@ export const useStore = create<AppState>((set, get) => ({
           const path = subPaths[k];
           if (path.length === 0) continue;
           if (path.length === 1) {
-            // Lone dot artifact: discard to eliminate remnant crumbs
             continue;
           }
           let totalLen = 0;
