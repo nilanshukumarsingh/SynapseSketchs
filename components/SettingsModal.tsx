@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useStore } from '@/lib/store';
-import { X, SlidersHorizontal, Cpu, Key, Eye, EyeOff, Coins, Sparkles, AlertCircle, Check, Trash } from 'lucide-react';
+import { X, SlidersHorizontal, Cpu, Key, Eye, EyeOff, Coins, Sparkles, AlertCircle, Check, Trash, Volume2 } from 'lucide-react';
 import { playSound } from '@/lib/ai-handler';
 
 import { clsx, type ClassValue } from 'clsx';
@@ -232,6 +232,55 @@ export default function SettingsModal() {
                       "px-4 py-1 text-xs font-bold rounded-full transition-all",
                       localSettings.skipClearConfirmation 
                         ? (theme === 'dark' ? 'bg-slate-800 text-white' : 'bg-slate-950 text-white shadow-xs') 
+                        : 'text-slate-400 hover:text-slate-500'
+                    )}
+                  >
+                    On
+                  </button>
+                </div>
+              </div>
+
+              {/* Tactile Audio Feedback Option */}
+              <div className={cn(
+                "p-4 rounded-3xl border flex justify-between items-center transition-all",
+                theme === 'dark' ? 'bg-slate-950/20 border-slate-800/50' : 'bg-slate-50 border-slate-100'
+              )}>
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <Volume2 size={14} className="text-indigo-500" />
+                    <span className="text-sm font-bold">Tactile Drawing Audio</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-1 max-w-[200px]">Subtle Web Audio micro-friction textures when drawing or erasing strokes on canvas.</p>
+                </div>
+                <div className={cn(
+                  "flex rounded-full p-1 border shrink-0",
+                  theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
+                )}>
+                  <button
+                    onClick={() => {
+                      setLocalSettings({ ...localSettings, audioFeedback: false });
+                      useStore.getState().setTopMessage("Drawing audio feedback muted.");
+                      playSound(320, 'sine', 0.08);
+                    }}
+                    className={cn(
+                      "px-4 py-1 text-xs font-bold rounded-full transition-all",
+                      localSettings.audioFeedback === false 
+                        ? (theme === 'dark' ? 'bg-slate-800 text-white' : 'bg-slate-150 text-slate-950 shadow-xs') 
+                        : 'text-slate-400 hover:text-slate-500'
+                    )}
+                  >
+                    Mute
+                  </button>
+                  <button
+                    onClick={() => {
+                      setLocalSettings({ ...localSettings, audioFeedback: true });
+                      useStore.getState().setTopMessage("Drawing audio feedback activated! 🎧");
+                      playSound(580, 'sine', 0.08);
+                    }}
+                    className={cn(
+                      "px-4 py-1 text-xs font-bold rounded-full transition-all",
+                      localSettings.audioFeedback !== false 
+                        ? (theme === 'dark' ? 'bg-indigo-600 text-white' : 'bg-indigo-600 text-white shadow-xs') 
                         : 'text-slate-400 hover:text-slate-500'
                     )}
                   >

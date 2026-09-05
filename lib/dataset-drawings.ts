@@ -31,6 +31,628 @@ export interface DatasetDrawing {
 }
 
 export const DATASET_DRAWINGS: DatasetDrawing[] = [
+  // ==================== QUICK, DRAW! INGESTED DATASET ====================
+  {
+    id: 'banana',
+    name: 'Banana',
+    keywords: ["banana","bananas","banana sketch"],
+    description: 'Authentic Quick, Draw! vector sketch of banana',
+    viewBox: { width: 256, height: 256 },
+    svgParts: [
+          "M 4 7 L 18 51 L 29 66 L 63 90 L 93 101 L 120 106 L 146 106 L 169 101 L 186 93 L 218 67 L 244 22 L 234 23 L 186 49 L 154 58 L 128 59 L 86 53 L 44 26 L 14 16 L 0 6",
+          "M 10 15 L 27 39 L 42 53 L 78 67 L 135 80 L 162 74 L 212 48 L 230 35 L 244 20",
+          "M 9 18 L 2 3 L 16 0 L 22 3 L 23 8 L 20 20",
+          "M 229 23 L 244 17 L 254 18 L 252 22 L 241 30",
+          "M 52 52 L 52 52",
+          "M 52 52 L 50 52",
+          "M 59 69 L 43 61"
+    ]
+  },
+  {
+    id: 'camel',
+    name: 'Camel',
+    keywords: ["camel","camels","camel sketch"],
+    description: 'Authentic Quick, Draw! vector sketch of camel',
+    viewBox: { width: 256, height: 256 },
+    svgParts: [
+          "M 47 0 L 27 4 L 15 11 L 3 25 L 0 38 L 2 51 L 12 58 L 33 57 L 46 48 L 51 40 L 53 27 L 49 17 L 40 8",
+          "M 49 44 L 60 60 L 66 63 L 74 59 L 90 36 L 105 33 L 116 44 L 125 69 L 132 73 L 141 65 L 151 38 L 160 33 L 172 36 L 183 54 L 190 77 L 199 83 L 221 88 L 232 106 L 229 121 L 218 136 L 198 149 L 182 155 L 142 154 L 109 143 L 95 136 L 52 101 L 37 79 L 26 49",
+          "M 229 95 L 245 105 L 253 114 L 255 131 L 249 169",
+          "M 63 99 L 45 155 L 44 171 L 48 172",
+          "M 42 161 L 62 162 L 76 120",
+          "M 97 130 L 89 152 L 90 165 L 95 170 L 106 171 L 112 164 L 113 139",
+          "M 151 153 L 149 159 L 151 170 L 155 176 L 163 179"
+    ]
+  },
+  {
+    id: 'coffee_cup',
+    name: 'Coffee Cup',
+    keywords: ["coffee cup","coffee cups","coffee cup sketch"],
+    description: 'Authentic Quick, Draw! vector sketch of coffee cup',
+    viewBox: { width: 256, height: 256 },
+    svgParts: [
+          "M 2 30 L 0 62 L 12 144 L 14 174 L 21 177 L 30 174 L 130 174 L 147 170 L 153 162 L 153 148 L 137 64 L 135 22 L 105 2 L 57 0 L 27 10 L 6 27",
+          "M 152 44 L 146 33 L 150 21 L 161 9 L 173 3 L 204 3 L 237 27 L 253 51 L 255 85 L 252 94 L 244 102 L 213 120 L 196 124 L 153 123 L 147 120",
+          "M 2 87 L 51 90 L 67 77 L 97 78 L 105 75 L 140 75 L 162 81"
+    ]
+  },
+  {
+    id: 'cow',
+    name: 'Cow',
+    keywords: ["cow","cows","cow sketch"],
+    description: 'Authentic Quick, Draw! vector sketch of cow',
+    viewBox: { width: 256, height: 256 },
+    svgParts: [
+          "M 57 25 L 85 25 L 135 32 L 143 34 L 160 53 L 174 63 L 198 63 L 204 79 L 199 91 L 193 94 L 145 100 L 92 93 L 86 98 L 83 112 L 79 111 L 58 99 L 50 77 L 44 37 L 46 23 L 50 18",
+          "M 59 31 L 45 0 L 31 2 L 3 16 L 0 34 L 6 39 L 43 49",
+          "M 73 104 L 73 124 L 76 132 L 85 117 L 88 101",
+          "M 107 93 L 102 144 L 105 145 L 109 136 L 119 103",
+          "M 202 75 L 218 55 L 236 55 L 249 72 L 255 84 L 253 111 L 247 124",
+          "M 144 97 L 146 137 L 149 138 L 162 110 L 166 89",
+          "M 173 98 L 172 125 L 183 158 L 195 138 L 197 125 L 199 112 L 194 95",
+          "M 172 69 L 167 77 L 170 79 L 199 79 L 155 74 L 159 71 L 184 71 L 182 73 L 158 73 L 191 76"
+    ]
+  },
+  {
+    id: 'crab',
+    name: 'Crab',
+    keywords: ["crab","crabs","crab sketch"],
+    description: 'Authentic Quick, Draw! vector sketch of crab',
+    viewBox: { width: 256, height: 256 },
+    svgParts: [
+          "M 49 100 L 28 106 L 10 121 L 2 133 L 0 158",
+          "M 83 110 L 62 121 L 49 134 L 43 146 L 43 163 L 46 169",
+          "M 146 117 L 167 116 L 197 132 L 204 145 L 207 171",
+          "M 188 97 L 210 107 L 245 136 L 255 157",
+          "M 101 53 L 74 51 L 51 64 L 40 74 L 39 79 L 42 85 L 75 112 L 85 116 L 131 116 L 155 105 L 174 84 L 179 61 L 168 51 L 140 45 L 107 45",
+          "M 96 74 L 92 38 L 92 0"
+    ]
+  },
+  {
+    id: 'dolphin',
+    name: 'Dolphin',
+    keywords: ["dolphin","dolphins","dolphin sketch"],
+    description: 'Authentic Quick, Draw! vector sketch of dolphin',
+    viewBox: { width: 256, height: 256 },
+    svgParts: [
+          "M 0 78 L 24 56 L 46 43 L 94 32 L 122 30",
+          "M 2 81 L 62 84 L 103 96 L 114 113 L 115 135 L 111 157 L 99 171 L 116 172 L 126 170 L 143 158 L 152 144 L 159 124 L 160 105 L 221 111 L 255 92 L 253 88 L 173 56 L 156 15 L 141 0 L 139 6 L 144 36 L 121 24"
+    ]
+  },
+  {
+    id: 'duck',
+    name: 'Duck',
+    keywords: ["duck","ducks","duck sketch"],
+    description: 'Authentic Quick, Draw! vector sketch of duck',
+    viewBox: { width: 256, height: 256 },
+    svgParts: [
+          "M 13 68 L 28 99 L 37 110 L 73 120 L 107 120 L 122 114 L 135 102 L 139 81",
+          "M 6 69 L 1 75 L 0 107 L 6 137 L 16 159 L 24 172 L 48 188 L 63 195 L 83 198 L 114 197 L 125 191 L 131 183 L 138 157 L 140 81",
+          "M 73 199 L 78 255",
+          "M 104 203 L 108 249",
+          "M 138 87 L 129 60 L 128 24 L 139 6 L 152 0 L 162 1 L 181 24 L 187 40 L 188 61 L 180 75 L 170 83 L 149 88 L 127 87",
+          "M 182 44 L 223 40",
+          "M 194 63 L 232 67"
+    ]
+  },
+  {
+    id: 'elephant',
+    name: 'Elephant',
+    keywords: ["elephant","elephants","elephant sketch"],
+    description: 'Authentic Quick, Draw! vector sketch of elephant',
+    viewBox: { width: 256, height: 256 },
+    svgParts: [
+          "M 83 32 L 17 0 L 7 1 L 1 16 L 1 42 L 9 80 L 17 95 L 49 124 L 58 185 L 69 190 L 89 188 L 101 179 L 104 167 L 105 138 L 94 102 L 99 43 L 90 30 L 72 20",
+          "M 92 53 L 103 33 L 109 29 L 131 23 L 166 20 L 185 30 L 193 41 L 193 79 L 183 160 L 184 185 L 202 211 L 206 214 L 217 214 L 223 209 L 229 196 L 234 163 L 249 161 L 254 170 L 254 200 L 251 216 L 238 240 L 230 246 L 209 253 L 171 253 L 122 237 L 97 217 L 88 188 L 90 165",
+          "M 191 30 L 216 7 L 243 1 L 249 21 L 249 56 L 241 69 L 226 79 L 223 83 L 224 106 L 236 137 L 235 151 L 218 170 L 205 175 L 185 177"
+    ]
+  },
+  {
+    id: 'frog',
+    name: 'Frog',
+    keywords: ["frog","frogs","frog sketch"],
+    description: 'Authentic Quick, Draw! vector sketch of frog',
+    viewBox: { width: 256, height: 256 },
+    svgParts: [
+          "M 26 32 L 35 13 L 55 0 L 68 2 L 98 17 L 117 23 L 170 8 L 190 6 L 204 8 L 218 16 L 244 46 L 255 71 L 255 98 L 252 123 L 243 142 L 224 166 L 208 180 L 187 191 L 159 196 L 134 192 L 115 185 L 93 170 L 75 152 L 54 116 L 33 43",
+          "M 77 22 L 64 32 L 62 51 L 67 60 L 80 65 L 84 63 L 89 56 L 88 49 L 83 44",
+          "M 204 37 L 194 37 L 183 46 L 180 57 L 182 66 L 187 71 L 196 74 L 217 67 L 222 60 L 223 51 L 218 47 L 207 46 L 194 50 L 161 71",
+          "M 208 55 L 208 55",
+          "M 61 35 L 61 35",
+          "M 102 147 L 120 162 L 144 165 L 165 158 L 215 128",
+          "M 61 9 L 61 9",
+          "M 47 95 L 36 99 L 25 113 L 9 154 L 0 218 L 3 232 L 10 239 L 27 245 L 46 243 L 55 234 L 62 213 L 61 220 L 68 220 L 74 225 L 82 223 L 89 231 L 95 227 L 128 155"
+    ]
+  },
+  {
+    id: 'giraffe',
+    name: 'Giraffe',
+    keywords: ["giraffe","giraffes","giraffe sketch"],
+    description: 'Authentic Quick, Draw! vector sketch of giraffe',
+    viewBox: { width: 256, height: 256 },
+    svgParts: [
+          "M 25 32 L 9 46 L 0 59 L 1 65 L 13 67 L 35 47",
+          "M 64 14 L 47 15 L 36 21 L 25 37 L 25 42 L 41 56 L 53 59 L 66 41 L 69 24",
+          "M 20 8 L 39 23",
+          "M 51 0 L 52 11",
+          "M 56 55 L 46 91 L 46 127 L 55 183",
+          "M 74 58 L 70 95 L 73 172",
+          "M 53 187 L 79 178 L 100 174 L 126 173 L 149 178 L 150 190 L 138 203 L 131 207 L 96 215 L 47 203 L 39 190 L 40 182",
+          "M 54 204 L 36 228 L 22 253",
+          "M 73 220 L 49 255",
+          "M 118 205 L 119 223 L 132 252",
+          "M 142 195 L 143 206 L 159 238",
+          "M 143 181 L 161 168 L 165 169 L 169 200 L 166 214"
+    ]
+  },
+  {
+    id: 'hamburger',
+    name: 'Hamburger',
+    keywords: ["hamburger","hamburgers","hamburger sketch"],
+    description: 'Authentic Quick, Draw! vector sketch of hamburger',
+    viewBox: { width: 256, height: 256 },
+    svgParts: [
+          "M 42 96 L 41 113 L 51 102 L 53 108 L 59 105 L 67 121 L 72 121 L 86 99 L 92 120 L 100 104 L 104 119 L 108 123 L 118 108 L 122 135 L 129 144 L 141 113 L 156 139 L 177 110 L 187 131 L 192 130 L 196 120 L 203 131 L 215 112 L 221 126 L 227 106 L 211 98 L 192 95 L 98 97 L 65 92 L 42 96",
+          "M 40 107 L 47 131 L 54 140 L 61 144 L 190 161 L 204 160 L 213 157 L 217 140 L 217 119",
+          "M 50 143 L 38 143 L 24 148 L 21 155 L 21 162 L 24 164 L 120 180 L 207 184 L 232 166 L 231 163 L 213 160",
+          "M 44 96 L 6 95 L 24 51 L 42 28 L 68 8 L 79 3 L 109 0 L 177 30 L 206 46 L 229 64 L 255 98 L 251 101 L 220 105",
+          "M 10 159 L 2 165 L 0 176 L 20 201 L 46 217"
+    ]
+  },
+  {
+    id: 'helicopter',
+    name: 'Helicopter',
+    keywords: ["helicopter","helicopters","helicopter sketch"],
+    description: 'Authentic Quick, Draw! vector sketch of helicopter',
+    viewBox: { width: 256, height: 256 },
+    svgParts: [
+          "M 136 14 L 88 22 L 0 24",
+          "M 127 18 L 98 29 L 22 39",
+          "M 102 11 L 49 0",
+          "M 131 9 L 254 7 L 238 12",
+          "M 134 19 L 164 20 L 186 25",
+          "M 106 18 L 107 42",
+          "M 105 51 L 34 51 L 25 54 L 21 61 L 22 88 L 29 99 L 65 127 L 99 137 L 130 140 L 146 131 L 170 102 L 173 93 L 173 76 L 167 60 L 155 50 L 109 41 L 97 42 L 89 49",
+          "M 50 51 L 37 109 L 139 121 L 225 124 L 218 120 L 198 116 L 144 108 L 131 108 L 129 103 L 148 36 L 142 41"
+    ]
+  },
+  {
+    id: 'horse',
+    name: 'Horse',
+    keywords: ["horse","horses","horse sketch"],
+    description: 'Authentic Quick, Draw! vector sketch of horse',
+    viewBox: { width: 256, height: 256 },
+    svgParts: [
+          "M 49 9 L 70 0 L 85 3 L 92 10 L 110 46 L 130 60 L 173 63 L 218 56 L 235 64 L 240 77",
+          "M 70 79 L 78 105 L 89 113 L 106 118 L 159 117 L 185 114 L 225 108 L 238 101",
+          "M 226 63 L 238 56 L 252 80 L 255 91 L 253 124",
+          "M 228 66 L 236 81 L 242 106 L 239 156",
+          "M 229 87 L 235 119",
+          "M 190 107 L 182 194",
+          "M 201 116 L 207 198",
+          "M 107 118 L 87 167 L 84 192",
+          "M 123 120 L 130 144 L 133 196",
+          "M 68 17 L 27 33 L 2 57 L 1 68 L 8 73 L 18 73 L 78 53",
+          "M 54 44 L 54 44"
+    ]
+  },
+  {
+    id: 'hot_air_balloon',
+    name: 'Hot Air Balloon',
+    keywords: ["hot air balloon","hot air balloons","hot air balloon sketch"],
+    description: 'Authentic Quick, Draw! vector sketch of hot air balloon',
+    viewBox: { width: 256, height: 256 },
+    svgParts: [
+          "M 24 183 L 37 233 L 45 244 L 59 253 L 96 255 L 105 252 L 114 233 L 119 197 L 119 188 L 90 188 L 48 182 L 24 184",
+          "M 77 180 L 89 155 L 91 143 L 120 94",
+          "M 63 182 L 68 167 L 68 117 L 64 100",
+          "M 59 185 L 53 169 L 25 127 L 14 103",
+          "M 13 105 L 23 109 L 35 109 L 45 114 L 90 118 L 139 116 L 157 108 L 171 83 L 171 59 L 152 38 L 147 26 L 122 10 L 104 7 L 96 0 L 72 2 L 45 12 L 22 27 L 3 57 L 0 91 L 13 107 L 26 110"
+    ]
+  },
+  {
+    id: 'ice_cream',
+    name: 'Ice Cream',
+    keywords: ["ice cream","ice creams","ice cream sketch"],
+    description: 'Authentic Quick, Draw! vector sketch of ice cream',
+    viewBox: { width: 256, height: 256 },
+    svgParts: [
+          "M 16 122 L 58 255 L 84 165 L 93 107 L 1 115",
+          "M 10 81 L 2 88 L 0 101 L 6 109 L 15 112 L 39 111 L 57 97 L 63 82 L 44 70 L 17 60 L 7 62 L 6 73",
+          "M 93 51 L 81 58 L 76 65 L 74 77 L 74 85 L 86 95 L 106 102 L 123 101 L 140 90 L 145 81 L 145 71 L 123 57 L 95 54",
+          "M 46 0 L 40 10 L 40 27"
+    ]
+  },
+  {
+    id: 'lion',
+    name: 'Lion',
+    keywords: ["lion","lions","lion sketch"],
+    description: 'Authentic Quick, Draw! vector sketch of lion',
+    viewBox: { width: 256, height: 256 },
+    svgParts: [
+          "M 135 60 L 135 60",
+          "M 125 57 L 110 63 L 90 77 L 68 104 L 64 115 L 63 125 L 67 138 L 91 175 L 117 191 L 142 191 L 159 184 L 169 176 L 185 160 L 190 149 L 196 127 L 196 101 L 188 72 L 176 58 L 161 49 L 143 50 L 127 59",
+          "M 97 93 L 99 108 L 109 116 L 116 117 L 121 111 L 123 97 L 112 81",
+          "M 159 67 L 149 74 L 145 82 L 147 96 L 152 104 L 162 114 L 173 105 L 176 82 L 169 75 L 165 76",
+          "M 51 110 L 43 92 L 40 76 L 49 49 L 55 42 L 69 37 L 88 39 L 102 46 L 118 65 L 123 57 L 129 30 L 139 14 L 152 3 L 165 0 L 182 6 L 195 19 L 197 44 L 209 39 L 219 40 L 226 42 L 235 54 L 245 88 L 238 99 L 225 110 L 224 115 L 252 139 L 255 145 L 243 158 L 217 174 L 213 198 L 208 204 L 194 215 L 165 218 L 150 212 L 144 212 L 119 233 L 101 234 L 69 224 L 65 217 L 72 205 L 28 190 L 25 169 L 33 148 L 0 136 L 1 130 L 23 100 L 30 97 L 50 102",
+          "M 108 156 L 115 147 L 129 142 L 150 146 L 161 155 L 147 164 L 126 164 L 119 158 L 118 144"
+    ]
+  },
+  {
+    id: 'monkey',
+    name: 'Monkey',
+    keywords: ["monkey","monkeys","monkey sketch"],
+    description: 'Authentic Quick, Draw! vector sketch of monkey',
+    viewBox: { width: 256, height: 256 },
+    svgParts: [
+          "M 121 25 L 112 8 L 99 2 L 86 2 L 67 13 L 53 35 L 51 54 L 57 68 L 68 76 L 83 78 L 93 75 L 113 56 L 118 40 L 116 24 L 110 15 L 98 15",
+          "M 47 94 L 47 94",
+          "M 71 74 L 67 98",
+          "M 79 112 L 74 102 L 65 97 L 55 96 L 39 103 L 21 127 L 13 161 L 18 186 L 30 201 L 42 208 L 71 212 L 86 207 L 107 195 L 128 173 L 131 161 L 131 147 L 121 126 L 107 110 L 92 103 L 79 102",
+          "M 19 115 L 1 89 L 2 84",
+          "M 128 111 L 141 95 L 152 88",
+          "M 34 184 L 8 231",
+          "M 115 188 L 121 218 L 131 228",
+          "M 138 147 L 149 148 L 167 141 L 189 123 L 198 107 L 202 77 L 210 69 L 243 49 L 254 37 L 255 23 L 249 15",
+          "M 78 25 L 84 25",
+          "M 99 28 L 98 30",
+          "M 71 43 L 75 52 L 84 56 L 94 48 L 95 40",
+          "M 57 18 L 54 13 L 55 0"
+    ]
+  },
+  {
+    id: 'mushroom',
+    name: 'Mushroom',
+    keywords: ["mushroom","mushrooms","mushroom sketch"],
+    description: 'Authentic Quick, Draw! vector sketch of mushroom',
+    viewBox: { width: 256, height: 256 },
+    svgParts: [
+          "M 59 255 L 56 160 L 51 134 L 54 116",
+          "M 142 254 L 137 204 L 124 150 L 125 121 L 211 129 L 227 74 L 227 50 L 199 26 L 164 7 L 114 0 L 86 0 L 63 6 L 45 19 L 27 38 L 14 59 L 0 100 L 48 109"
+    ]
+  },
+  {
+    id: 'octopus',
+    name: 'Octopus',
+    keywords: ["octopus","octopuss","octopus sketch"],
+    description: 'Authentic Quick, Draw! vector sketch of octopus',
+    viewBox: { width: 256, height: 256 },
+    svgParts: [
+          "M 99 3 L 84 25 L 80 56",
+          "M 93 9 L 103 3 L 116 0 L 123 10 L 128 22 L 129 41 L 120 65",
+          "M 81 58 L 130 60",
+          "M 121 61 L 157 104",
+          "M 108 57 L 105 85 L 95 114 L 88 123",
+          "M 79 56 L 66 77 L 26 128 L 16 137 L 0 146",
+          "M 84 59 L 37 155 L 23 177 L 15 182 L 12 180",
+          "M 117 62 L 111 77 L 111 98 L 121 132 L 131 149 L 144 163 L 159 170 L 172 169 L 184 157",
+          "M 128 71 L 146 96 L 191 124 L 216 133 L 234 135 L 249 132 L 255 126",
+          "M 103 67 L 102 87 L 85 158 L 73 182 L 64 190"
+    ]
+  },
+  {
+    id: 'owl',
+    name: 'Owl',
+    keywords: ["owl","owls","owl sketch"],
+    description: 'Authentic Quick, Draw! vector sketch of owl',
+    viewBox: { width: 256, height: 256 },
+    svgParts: [
+          "M 56 19 L 30 29 L 9 51 L 0 75 L 4 106 L 15 133 L 26 143 L 62 151 L 94 149 L 111 144 L 118 139 L 143 102 L 152 66 L 149 34 L 143 24 L 129 14 L 108 5 L 86 0 L 68 1 L 46 7 L 33 16 L 28 25",
+          "M 45 45 L 32 53 L 26 67 L 26 90 L 36 100 L 47 101 L 56 95 L 65 79 L 69 59 L 64 48 L 56 42 L 37 37 L 30 37 L 30 40",
+          "M 109 45 L 92 57 L 83 71 L 82 87 L 88 101 L 96 104 L 112 101 L 122 87 L 125 55 L 121 46 L 112 48",
+          "M 66 97 L 73 98 L 69 108 L 67 99",
+          "M 47 67 L 47 71 L 51 70 L 51 66 L 46 68 L 43 76 L 47 76 L 50 69 L 45 68 L 42 71 L 44 75 L 48 75 L 48 69",
+          "M 107 69 L 100 74 L 101 78 L 105 80 L 110 74 L 108 70 L 103 75 L 102 78 L 106 78 L 107 73 L 105 77",
+          "M 38 14 L 20 10 L 14 28 L 4 40",
+          "M 128 13 L 141 0 L 151 19 L 150 37",
+          "M 49 150 L 41 193 L 50 226 L 65 239 L 85 250 L 98 255 L 117 254 L 132 249 L 144 236 L 153 194 L 152 164 L 143 142 L 137 134 L 120 132"
+    ]
+  },
+  {
+    id: 'palm_tree',
+    name: 'Palm Tree',
+    keywords: ["palm tree","palm trees","palm tree sketch"],
+    description: 'Authentic Quick, Draw! vector sketch of palm tree',
+    viewBox: { width: 256, height: 256 },
+    svgParts: [
+          "M 66 255 L 66 128",
+          "M 80 240 L 80 106",
+          "M 64 108 L 58 111 L 15 189 L 13 162 L 26 108 L 0 109 L 13 101 L 41 94 L 35 91 L 5 88 L 3 61 L 20 60 L 33 62 L 39 37 L 48 49 L 56 48 L 82 0 L 83 48 L 101 35 L 114 31 L 118 54 L 132 67 L 150 75 L 141 79 L 115 78 L 124 87 L 155 134 L 164 150 L 165 159 L 157 158 L 121 117 L 101 108 L 133 168 L 127 169 L 81 118 L 68 112"
+    ]
+  },
+  {
+    id: 'panda',
+    name: 'Panda',
+    keywords: ["panda","pandas","panda sketch"],
+    description: 'Authentic Quick, Draw! vector sketch of panda',
+    viewBox: { width: 256, height: 256 },
+    svgParts: [
+          "M 132 46 L 106 45 L 81 51 L 66 59 L 40 81 L 20 114 L 18 152 L 37 183 L 60 203 L 72 213 L 105 223 L 131 223 L 142 219 L 166 201 L 193 169 L 204 138 L 205 106 L 201 95 L 183 65 L 175 58 L 161 47 L 137 39",
+          "M 168 45 L 167 27 L 172 14 L 184 5 L 207 0 L 235 1 L 251 17 L 255 31 L 255 47 L 244 66 L 229 75 L 201 76 L 190 73 L 179 62 L 169 45",
+          "M 22 92 L 5 64 L 4 43 L 12 29 L 31 17 L 66 17 L 77 26 L 80 47 L 69 66 L 51 77 L 24 85 L 8 85 L 0 75 L 0 61 L 12 45 L 29 39 L 58 38 L 64 41 L 68 49 L 68 58 L 61 63 L 50 67 L 30 65 L 18 54 L 18 39 L 44 35 L 59 47 L 62 70 L 54 76 L 35 76 L 22 64 L 21 51 L 23 44 L 37 35 L 54 35 L 63 44 L 63 64 L 56 71 L 46 76 L 27 77 L 19 67 L 19 58 L 29 44 L 40 40 L 65 41 L 70 53 L 67 64 L 54 66 L 48 63 L 45 57 L 45 41 L 55 32 L 80 29 L 84 37 L 85 53 L 82 59 L 72 67 L 61 70 L 36 70 L 25 63 L 24 50 L 39 39 L 64 36 L 72 40 L 76 50 L 74 61 L 66 66 L 44 67 L 34 58 L 33 40 L 42 36 L 59 37 L 68 51 L 65 60 L 51 61 L 47 45 L 54 36 L 69 33 L 72 40 L 70 46 L 58 53",
+          "M 205 36 L 203 32 L 205 27 L 217 26 L 223 31 L 228 43 L 228 52 L 225 58 L 200 59 L 191 45 L 191 29 L 203 18 L 225 17 L 239 32 L 240 50 L 233 57 L 224 59 L 200 57 L 188 43 L 188 32 L 194 27 L 215 25 L 226 29 L 233 39 L 234 52 L 223 59 L 192 62 L 179 52 L 179 41 L 186 35 L 197 33 L 223 35 L 229 41 L 231 54 L 220 61 L 189 61 L 179 49 L 181 37 L 194 33 L 221 33 L 229 41 L 226 58 L 213 67 L 184 70",
+          "M 64 102 L 62 114 L 72 125 L 81 128 L 91 127 L 97 117 L 97 100 L 87 92 L 79 92"
+    ]
+  },
+  {
+    id: 'penguin',
+    name: 'Penguin',
+    keywords: ["penguin","penguins","penguin sketch"],
+    description: 'Authentic Quick, Draw! vector sketch of penguin',
+    viewBox: { width: 256, height: 256 },
+    svgParts: [
+          "M 114 21 L 103 4 L 88 0 L 76 6 L 68 29 L 73 112 L 90 208",
+          "M 109 25 L 124 24 L 135 32 L 147 57 L 151 87 L 144 132 L 136 159 L 105 208 L 98 213",
+          "M 151 72 L 178 90 L 212 123 L 223 130 L 240 151 L 244 160 L 243 163 L 237 163 L 171 141 L 157 127 L 145 123",
+          "M 68 77 L 68 81 L 0 125 L 23 133 L 82 130",
+          "M 86 199 L 84 206 L 75 213 L 62 235 L 57 250 L 65 255 L 73 252 L 86 233 L 86 218"
+    ]
+  },
+  {
+    id: 'pig',
+    name: 'Pig',
+    keywords: ["pig","pigs","pig sketch"],
+    description: 'Authentic Quick, Draw! vector sketch of pig',
+    viewBox: { width: 256, height: 256 },
+    svgParts: [
+          "M 136 81 L 96 81 L 84 85 L 60 97 L 53 108 L 56 142 L 67 162 L 87 180 L 110 191 L 148 190 L 178 175 L 196 156 L 202 140 L 201 108 L 197 98 L 160 79 L 129 75 L 124 77",
+          "M 78 177 L 77 216 L 80 214",
+          "M 91 186 L 94 210",
+          "M 158 177 L 171 195 L 186 209",
+          "M 179 180 L 203 202",
+          "M 222 41 L 201 37 L 187 45 L 181 57 L 179 76 L 179 95 L 182 105 L 190 118 L 212 133 L 245 126 L 251 121 L 255 90 L 254 81 L 237 56 L 203 40",
+          "M 219 88 L 209 91 L 203 102 L 209 111 L 219 115 L 225 108 L 225 97 L 218 91",
+          "M 213 99 L 213 99",
+          "M 218 100 L 217 100",
+          "M 52 100 L 50 95 L 42 87 L 25 84 L 21 89 L 24 94 L 33 95 L 34 87 L 34 81 L 25 74 L 9 75 L 0 85 L 0 90 L 4 91 L 6 86",
+          "M 175 62 L 139 55 L 124 47 L 113 32 L 115 24 L 121 17 L 135 10 L 171 0 L 180 6 L 187 19 L 187 39"
+    ]
+  },
+  {
+    id: 'rabbit',
+    name: 'Rabbit',
+    keywords: ["rabbit","rabbits","rabbit sketch"],
+    description: 'Authentic Quick, Draw! vector sketch of rabbit',
+    viewBox: { width: 256, height: 256 },
+    svgParts: [
+          "M 87 58 L 34 68 L 20 77 L 12 94 L 14 104 L 31 110 L 71 109 L 88 104 L 101 94 L 109 79 L 112 55 L 109 51 L 104 50",
+          "M 59 89 L 59 89",
+          "M 59 88 L 59 88",
+          "M 39 84 L 38 85",
+          "M 31 69 L 36 72 L 46 73 L 85 66 L 105 74",
+          "M 39 58 L 25 45 L 14 30 L 8 19 L 3 0 L 31 6 L 42 11 L 56 28 L 71 55",
+          "M 95 49 L 129 22 L 143 18 L 151 21 L 150 35 L 142 54 L 115 94",
+          "M 61 110 L 20 114 L 11 121 L 6 138 L 10 167 L 18 189 L 27 202 L 43 210 L 60 208 L 87 194 L 99 180 L 105 159 L 103 140 L 92 126 L 76 113 L 52 109",
+          "M 29 207 L 18 209 L 10 214 L 0 242 L 4 247 L 22 250 L 19 255"
+    ]
+  },
+  {
+    id: 'sailboat',
+    name: 'Sailboat',
+    keywords: ["sailboat","sailboats","sailboat sketch"],
+    description: 'Authentic Quick, Draw! vector sketch of sailboat',
+    viewBox: { width: 256, height: 256 },
+    svgParts: [
+          "M 19 115 L 93 118 L 233 118 L 250 125 L 254 132 L 255 141 L 249 150 L 232 163 L 207 177 L 182 186 L 105 197 L 76 197 L 60 193 L 19 177 L 5 163 L 0 151 L 1 136 L 7 125 L 21 111 L 33 106",
+          "M 123 119 L 116 34",
+          "M 123 30 L 123 30",
+          "M 131 89 L 148 90 L 185 84 L 158 39 L 126 11",
+          "M 130 51 L 125 8",
+          "M 117 48 L 124 0"
+    ]
+  },
+  {
+    id: 'scissors',
+    name: 'Scissors',
+    keywords: ["scissors","scissorss","scissors sketch"],
+    description: 'Authentic Quick, Draw! vector sketch of scissors',
+    viewBox: { width: 256, height: 256 },
+    svgParts: [
+          "M 40 163 L 10 181 L 2 193 L 0 230 L 6 243 L 17 249 L 39 255 L 64 253 L 69 249 L 76 205 L 73 195 L 57 181",
+          "M 43 153 L 40 163 L 40 149 L 43 116 L 54 53 L 59 43 L 63 38 L 67 37 L 75 86 L 75 138 L 119 10 L 128 0 L 132 4 L 130 47 L 110 162 L 130 162 L 166 178 L 173 191 L 174 220 L 167 244 L 162 250 L 150 254 L 117 252"
+    ]
+  },
+  {
+    id: 'shark',
+    name: 'Shark',
+    keywords: ["shark","sharks","shark sketch"],
+    description: 'Authentic Quick, Draw! vector sketch of shark',
+    viewBox: { width: 256, height: 256 },
+    svgParts: [
+          "M 59 73 L 68 83 L 98 95 L 134 102 L 161 102 L 185 94 L 206 76 L 213 65 L 206 56 L 180 46 L 138 45 L 86 57 L 56 70",
+          "M 69 47 L 36 45 L 21 50 L 8 59 L 1 69 L 1 89 L 11 101 L 24 106 L 42 105 L 54 101 L 74 80 L 78 58 L 74 44 L 62 36 L 55 36 L 46 42",
+          "M 16 94 L 22 106 L 26 93 L 34 102 L 38 89 L 54 97 L 54 84 L 65 90 L 66 88 L 62 69",
+          "M 199 51 L 235 0 L 237 14 L 232 35 L 227 45 L 255 33 L 241 50 L 204 82",
+          "M 115 43 L 108 3 L 116 2 L 149 9 L 164 1"
+    ]
+  },
+  {
+    id: 'sheep',
+    name: 'Sheep',
+    keywords: ["sheep","sheeps","sheep sketch"],
+    description: 'Authentic Quick, Draw! vector sketch of sheep',
+    viewBox: { width: 256, height: 256 },
+    svgParts: [
+          "M 59 203 L 59 192 L 52 170 L 50 135 L 44 119",
+          "M 152 207 L 159 207 L 161 204 L 161 189 L 148 132",
+          "M 138 133 L 140 137 L 136 139 L 113 139 L 127 133 L 101 143 L 78 145 L 76 134 L 85 114 L 82 111 L 62 122 L 37 126 L 27 109 L 27 69 L 15 70 L 7 63 L 1 49 L 1 32 L 5 26 L 17 23 L 29 24 L 39 32 L 36 31 L 31 24 L 30 11 L 33 7 L 50 1 L 69 0 L 87 5 L 104 25 L 113 23 L 127 11 L 134 9 L 136 24 L 143 36 L 160 23 L 165 44 L 177 56 L 179 79",
+          "M 133 150 L 149 138 L 182 132 L 189 128 L 188 117 L 214 115 L 215 95 L 211 88",
+          "M 184 85 L 224 70 L 242 58 L 253 36 L 254 12",
+          "M 246 16 L 246 3 L 255 14"
+    ]
+  },
+  {
+    id: 'snail',
+    name: 'Snail',
+    keywords: ["snail","snails","snail sketch"],
+    description: 'Authentic Quick, Draw! vector sketch of snail',
+    viewBox: { width: 256, height: 256 },
+    svgParts: [
+          "M 71 64 L 72 71 L 79 76 L 93 71 L 99 53 L 95 39 L 90 33 L 83 30 L 60 29 L 52 33 L 18 77 L 14 87 L 15 103 L 133 112 L 145 92 L 155 56 L 153 15 L 150 9 L 143 4 L 120 0 L 67 0 L 37 17 L 13 47 L 0 71 L 0 96 L 13 121 L 37 133 L 82 142 L 116 145 L 136 145 L 161 136 L 204 135 L 243 138 L 249 136",
+          "M 135 111 L 174 108 L 212 113 L 250 128 L 255 145"
+    ]
+  },
+  {
+    id: 'snake',
+    name: 'Snake',
+    keywords: ["snake","snakes","snake sketch"],
+    description: 'Authentic Quick, Draw! vector sketch of snake',
+    viewBox: { width: 256, height: 256 },
+    svgParts: [
+          "M 0 115 L 31 132 L 52 134 L 98 105 L 131 77 L 143 73 L 158 73 L 194 102 L 213 109 L 220 109 L 248 85 L 253 75 L 254 46 L 250 36 L 244 36 L 235 45 L 228 64 L 206 74 L 189 64 L 173 39 L 158 37 L 133 43 L 110 52 L 58 87 L 31 96 L 13 108 L 6 110",
+          "M 244 51 L 244 51",
+          "M 245 57 L 243 63 L 246 61",
+          "M 247 50 L 244 33 L 219 2",
+          "M 232 16 L 232 0"
+    ]
+  },
+  {
+    id: 'snowflake',
+    name: 'Snowflake',
+    keywords: ["snowflake","snowflakes","snowflake sketch"],
+    description: 'Authentic Quick, Draw! vector sketch of snowflake',
+    viewBox: { width: 256, height: 256 },
+    svgParts: [
+          "M 43 9 L 55 27 L 124 92 L 166 126 L 218 184 L 241 214 L 236 201",
+          "M 253 31 L 233 45 L 124 99 L 49 157 L 43 165 L 0 206 L 0 198 L 6 189",
+          "M 150 0 L 148 117 L 114 155 L 113 167 L 79 255"
+    ]
+  },
+  {
+    id: 'snowman',
+    name: 'Snowman',
+    keywords: ["snowman","snowmans","snowman sketch"],
+    description: 'Authentic Quick, Draw! vector sketch of snowman',
+    viewBox: { width: 256, height: 256 },
+    svgParts: [
+          "M 51 0 L 37 14 L 31 33 L 33 59 L 39 68 L 56 81 L 74 83 L 88 78 L 101 68 L 106 60 L 111 47 L 112 26 L 99 6 L 91 2 L 67 9 L 64 17",
+          "M 58 93 L 29 123 L 17 140 L 7 166 L 0 201 L 2 224 L 6 228 L 40 253 L 52 255 L 69 251 L 79 244 L 102 222 L 124 190 L 135 153 L 132 128 L 125 112 L 117 101 L 101 93 L 70 93",
+          "M 76 54 L 102 43 L 210 30 L 246 20"
+    ]
+  },
+  {
+    id: 'spider',
+    name: 'Spider',
+    keywords: ["spider","spiders","spider sketch"],
+    description: 'Authentic Quick, Draw! vector sketch of spider',
+    viewBox: { width: 256, height: 256 },
+    svgParts: [
+          "M 128 64 L 109 62 L 97 77 L 92 91 L 92 117 L 96 127 L 104 134 L 113 136 L 138 135 L 149 125 L 161 97 L 157 63 L 150 55 L 140 49 L 128 49 L 115 54 L 97 75 L 93 88 L 95 110 L 102 117 L 113 120 L 139 119 L 150 111 L 155 102 L 156 77 L 150 70 L 125 67 L 112 72 L 97 93 L 95 115 L 101 122 L 126 126 L 139 120 L 153 98 L 151 71 L 144 65 L 122 67 L 116 79 L 114 90 L 114 117 L 123 124 L 143 125 L 154 116 L 161 104 L 162 79 L 156 71 L 130 69 L 118 76 L 111 88 L 110 110 L 113 118 L 138 119 L 150 107 L 158 81 L 158 71 L 154 65 L 134 66 L 124 82 L 122 92 L 133 95 L 140 87 L 145 76 L 142 63 L 133 67 L 127 81 L 125 99 L 139 94 L 146 81 L 148 73 L 139 79 L 130 91 L 132 85 L 120 106",
+          "M 110 142 L 111 152",
+          "M 144 140 L 149 158",
+          "M 86 125 L 77 123 L 48 141 L 18 176",
+          "M 151 107 L 201 130 L 213 140 L 228 160",
+          "M 108 107 L 84 103 L 34 103 L 12 110",
+          "M 153 88 L 163 82 L 186 82 L 211 89 L 233 100",
+          "M 112 75 L 70 71 L 0 73",
+          "M 139 80 L 186 58 L 255 55",
+          "M 112 65 L 95 55 L 61 46 L 38 36",
+          "M 157 72 L 143 70 L 142 62 L 188 0"
+    ]
+  },
+  {
+    id: 'strawberry',
+    name: 'Strawberry',
+    keywords: ["strawberry","strawberrys","strawberry sketch"],
+    description: 'Authentic Quick, Draw! vector sketch of strawberry',
+    viewBox: { width: 256, height: 256 },
+    svgParts: [
+          "M 18 121 L 16 201 L 23 225 L 65 246 L 98 255 L 108 255 L 118 250 L 140 220 L 145 198 L 145 174 L 132 135 L 118 116 L 95 111 L 37 111 L 23 113 L 16 119",
+          "M 30 111 L 29 92 L 19 61 L 5 41 L 0 29 L 13 25 L 38 39 L 47 67 L 53 75 L 59 64 L 61 17 L 65 4 L 71 0 L 84 22 L 86 67 L 104 24 L 116 22 L 122 27 L 120 43 L 110 63 L 125 42 L 137 32 L 166 29 L 171 36 L 166 60 L 155 71 L 129 109 L 126 119",
+          "M 39 188 L 39 188",
+          "M 39 188 L 40 194",
+          "M 62 201 L 66 211",
+          "M 104 210 L 115 219"
+    ]
+  },
+  {
+    id: 'sword',
+    name: 'Sword',
+    keywords: ["sword","swords","sword sketch"],
+    description: 'Authentic Quick, Draw! vector sketch of sword',
+    viewBox: { width: 256, height: 256 },
+    svgParts: [
+          "M 42 207 L 1 193 L 0 189 L 6 178 L 22 170 L 55 168 L 78 175 L 111 180 L 107 192 L 92 201 L 77 203 L 54 195",
+          "M 39 200 L 39 219 L 42 229 L 58 252 L 66 254 L 65 218 L 53 196 L 44 192",
+          "M 35 171 L 12 72 L 12 50 L 23 1 L 33 3 L 42 28 L 42 69 L 51 118 L 50 166"
+    ]
+  },
+  {
+    id: 'tiger',
+    name: 'Tiger',
+    keywords: ["tiger","tigers","tiger sketch"],
+    description: 'Authentic Quick, Draw! vector sketch of tiger',
+    viewBox: { width: 256, height: 256 },
+    svgParts: [
+          "M 73 11 L 66 6 L 46 2 L 23 10 L 12 23 L 11 33 L 22 48 L 48 56 L 58 54 L 67 41 L 70 22 L 65 10",
+          "M 66 9 L 85 3 L 71 26",
+          "M 24 6 L 1 1 L 2 10 L 8 19",
+          "M 64 34 L 88 29 L 134 28 L 176 35 L 180 39 L 184 58 L 184 91 L 174 94 L 111 86 L 63 71 L 47 62",
+          "M 64 74 L 61 83 L 62 102",
+          "M 83 78 L 84 102 L 87 107",
+          "M 157 96 L 159 108 L 164 116",
+          "M 175 91 L 182 115",
+          "M 182 51 L 186 36 L 198 29 L 209 30 L 223 38 L 234 39 L 251 20 L 255 8",
+          "M 157 35 L 136 47 L 128 57 L 133 35 L 139 29",
+          "M 104 40 L 94 52 L 84 70 L 84 30 L 89 26",
+          "M 111 30 L 105 59 L 105 68 L 109 72 L 121 34",
+          "M 159 41 L 153 54 L 153 65"
+    ]
+  },
+  {
+    id: 'train',
+    name: 'Train',
+    keywords: ["train","trains","train sketch"],
+    description: 'Authentic Quick, Draw! vector sketch of train',
+    viewBox: { width: 256, height: 256 },
+    svgParts: [
+          "M 17 24 L 12 76",
+          "M 18 25 L 47 22 L 69 24 L 70 33 L 63 73",
+          "M 0 75 L 59 75",
+          "M 19 94 L 111 79 L 221 66 L 243 60",
+          "M 39 122 L 170 100 L 236 93 L 255 87",
+          "M 60 87 L 60 101 L 66 113",
+          "M 87 84 L 95 98 L 109 110",
+          "M 125 83 L 147 107 L 157 111",
+          "M 171 82 L 201 105",
+          "M 207 75 L 228 94 L 246 105",
+          "M 70 36 L 94 29 L 183 12 L 221 0",
+          "M 63 75 L 142 61 L 211 45 L 226 38 L 244 37",
+          "M 223 12 L 253 48"
+    ]
+  },
+  {
+    id: 'whale',
+    name: 'Whale',
+    keywords: ["whale","whales","whale sketch"],
+    description: 'Authentic Quick, Draw! vector sketch of whale',
+    viewBox: { width: 256, height: 256 },
+    svgParts: [
+          "M 103 45 L 71 23 L 45 11 L 21 12 L 6 22 L 6 30 L 12 39 L 37 55 L 26 65 L 2 75 L 0 80 L 14 116 L 25 127 L 47 128 L 106 118 L 153 106 L 236 102 L 252 92 L 254 82 L 237 45 L 215 13 L 201 3 L 172 0 L 149 6 L 123 20 L 106 40 L 96 43",
+          "M 184 39 L 176 37 L 173 31 L 176 23 L 187 24 L 189 29 L 182 37 L 177 24 L 180 31 L 174 28 L 180 27 L 179 32 L 176 32 L 181 23 L 180 28 L 184 38"
+    ]
+  },
+  {
+    id: 'windmill',
+    name: 'Windmill',
+    keywords: ["windmill","windmills","windmill sketch"],
+    description: 'Authentic Quick, Draw! vector sketch of windmill',
+    viewBox: { width: 256, height: 256 },
+    svgParts: [
+          "M 100 64 L 88 63 L 73 72 L 63 84 L 60 100 L 61 115 L 72 133 L 85 141 L 100 143 L 115 137 L 124 127 L 129 100 L 126 89 L 114 73 L 96 65",
+          "M 84 61 L 86 0 L 130 2 L 133 4 L 130 19 L 111 69",
+          "M 123 91 L 179 52 L 196 93 L 132 110",
+          "M 122 122 L 179 158 L 144 189 L 137 194 L 128 183 L 113 151 L 109 133",
+          "M 76 136 L 35 187 L 22 175 L 14 163 L 0 155 L 29 130 L 64 110",
+          "M 73 90 L 24 57 L 3 47 L 20 31 L 38 21 L 51 36 L 64 67",
+          "M 68 62 L 67 48 L 74 31",
+          "M 132 40 L 152 30 L 135 47 L 122 71",
+          "M 70 124 L 64 205 L 67 229",
+          "M 117 132 L 110 178 L 116 240",
+          "M 65 205 L 62 255",
+          "M 115 217 L 115 234"
+    ]
+  },
   // ==================== VEHICLES & TRANSPORT ====================
   {
     id: 'car',

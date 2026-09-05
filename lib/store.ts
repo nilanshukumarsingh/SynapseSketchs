@@ -55,6 +55,7 @@ export interface Settings {
   geminiModel: string;
   claudeModel: string;
   skipClearConfirmation: boolean;
+  audioFeedback: boolean;
 }
 
 export interface AiPreviewBox {
@@ -168,6 +169,7 @@ export const useStore = create<AppState>((set, get) => ({
     geminiModel: 'gemini-2.5-flash',
     claudeModel: 'claude-3-5-sonnet-latest',
     skipClearConfirmation: false,
+    audioFeedback: true,
   },
   isSettingsOpen: false,
   offset: { x: 0, y: 0 },

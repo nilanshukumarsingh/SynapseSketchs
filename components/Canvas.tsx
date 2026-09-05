@@ -3,12 +3,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useStore, Point, Stroke } from '@/lib/store';
 import AiTargetPreviewOverlay from '@/components/AiTargetPreviewOverlay';
+import { tactileAudio } from '@/lib/tactile-audio';
 
 const ASCII_CHARS = ['#', 'a', 't', 'g', 'o', 'p', 'l', '%', '=', 'i', 'p', 'n', 'm', 'd', 'a', 'o', 'Y', 's', '@', '«', 'I', 'f', '÷', '(', '~', 'c', '1', '8', 'K', '3', 'M'];
 
 export default function Canvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { strokes, currentTool, currentColor, currentSize, addStroke, updateLastStroke, finishStroke, offset, scale, setOffset, setScale, undo, redo, backgroundImage, theme, layers, activeLayerId, asciiChar } = useStore();
+  const { strokes, currentTool, currentColor, currentSize, addStroke, updateLastStroke, finishStroke, offset, scale, setOffset, setScale, undo, redo, backgroundImage, theme, layers, activeLayerId, asciiChar, settings } = useStore();
   const [isDrawing, setIsDrawing] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
   const [lastPanPoint, setLastPanPoint] = useState<Point | null>(null);
@@ -526,6 +527,9 @@ export default function Canvas() {
     } catch {}
 
     setIsDrawing(true);
+    if (settings.audioFeedback !== false) {
+      tactileAudio.onPointerDown(currentTool, point.pressure);
+    }
     if (currentTool === 'eraser' || currentTool === 'ai-eraser') {
       const baseW = getLineWidth(currentSize) * 4;
       fadingRipplesRef.current.push({
@@ -563,10 +567,15 @@ export default function Canvas() {
     if (!isDrawing) return;
     if (useStore.getState().isGenerating) {
       setIsDrawing(false);
+      tactileAudio.onPointerUp();
       return;
     }
     const point = getCoordinates(e);
     if (!point) return;
+
+    if (settings.audioFeedback !== false) {
+      tactileAudio.onPointerMove(point, currentTool, point.pressure);
+    }
 
     if (currentTool === 'eraser' || currentTool === 'ai-eraser') {
       const baseW = getLineWidth(currentSize) * 4;
@@ -583,6 +592,7 @@ export default function Canvas() {
   };
 
   const stopInteraction = (e?: React.PointerEvent<HTMLCanvasElement>) => {
+    tactileAudio.onPointerUp();
     if (e && e.currentTarget && typeof e.currentTarget.releasePointerCapture === 'function') {
       try {
         e.currentTarget.releasePointerCapture(e.pointerId);

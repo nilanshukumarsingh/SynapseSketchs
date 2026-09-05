@@ -572,7 +572,26 @@ DIRECTIONS:
     // Check if the prompt requests a known object from our high-precision vector dataset dictionary
     const { aiMemory } = useStore.getState();
     const lastMemoryObject = aiMemory && aiMemory.length > 0 ? aiMemory[aiMemory.length - 1].recognizedObject : undefined;
-    const matchedDataset = promptText ? findDatasetDrawing(promptText, lastMemoryObject) : null;
+    let matchedDataset = promptText ? findDatasetDrawing(promptText, lastMemoryObject) : null;
+
+    // 1b. Live on-demand training: If not in static dataset, check live Quick, Draw! 345 categories
+    if (!matchedDataset && promptText) {
+      try {
+        const qdRes = await fetch('/api/quickdraw', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: promptText }),
+        });
+        if (qdRes.ok) {
+          const qdData = await qdRes.json();
+          if (qdData.found && qdData.drawing) {
+            matchedDataset = qdData.drawing;
+          }
+        }
+      } catch (qdErr) {
+        console.warn('Quick, Draw! on-demand resolver fallback:', qdErr);
+      }
+    }
     if (matchedDataset) {
       // Calculate precise target placement coordinates
       let dW = targetBox ? targetBox.width : (hasLatestHumanBbox ? Math.max(160, pMaxX - pMinX) : 340);
