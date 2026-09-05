@@ -751,11 +751,16 @@ DIRECTIONS:
               }
               // Cleanly erase any messy strokes/points inside the user's sketch bounding box
               const margin = 20;
-              newStrokes = newStrokes.filter((s) => {
-                if (s.createdByAI) return true; // Keep previous pristine AI drawings outside box
-                const overlaps = s.points.some((pt) =>
-                  pt.x >= pMinX - margin && pt.x <= pMaxX + margin &&
-                  pt.y >= pMinY - margin && pt.y <= pMaxY + margin
+              const sc = scale || 1;
+              const wMinX = (pMinX - offset.x) / sc;
+              const wMaxX = (pMaxX - offset.x) / sc;
+              const wMinY = (pMinY - offset.y) / sc;
+              const wMaxY = (pMaxY - offset.y) / sc;
+              newStrokes = newStrokes.filter((str) => {
+                if (str.createdByAI) return true; // Keep previous pristine AI drawings outside box
+                const overlaps = str.points.some((pt) =>
+                  pt.x >= wMinX - margin && pt.x <= wMaxX + margin &&
+                  pt.y >= wMinY - margin && pt.y <= wMaxY + margin
                 );
                 return !overlaps;
               });

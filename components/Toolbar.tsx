@@ -5,7 +5,7 @@ import { useStore } from '@/lib/store';
 import { Pencil, Eraser, Type, Settings, Send, Dices, Loader2, Wand2, Moon, Sun, Layers, Plus, PaintBucket, Sparkles, Undo2, Redo2, Lock, Unlock, Image as ImageIcon, ZoomIn, ZoomOut, Maximize, Palette, PenTool, Trash, Download, Hand, GripVertical, Check, Brain, RotateCcw, Map, Eye, EyeOff, X, Stamp } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { handleAiAction, handleGenerateBg, prepareAiTargetPreview, playSound } from '@/lib/ai-handler';
+import { handleAiAction, handleGenerateBg, playSound } from '@/lib/ai-handler';
 import ToolbarButton from './ToolbarButton';
 import { STAMP_MAP } from '@/lib/stamps';
 
@@ -79,8 +79,9 @@ export default function Toolbar() {
   };
 
   const handleSend = React.useCallback(async (promptText?: string) => {
-    prepareAiTargetPreview(promptText);
-  }, []);
+    useStore.getState().setAiPreviewBox(null);
+    await handleAiAction(promptText?.trim() || undefined, setIsGenerating);
+  }, [setIsGenerating]);
 
   const onGenerateBg = async () => {
     if (await handleGenerateBg(bgPrompt, setIsGeneratingBg)) {
@@ -364,7 +365,7 @@ export default function Toolbar() {
                   return;
                 }
                 if (e.key === 'Enter') {
-                  useStore.getState().setTopMessage("Flickering synapses... Gemini 3.5 Flash is analyzing your dabs or lines to paint request! ✨");
+                  useStore.getState().setTopMessage("Analyzing and improving drawing... ✨");
                   handleSend(aiPromptText);
                   setAiPromptText('');
                   playSound(850, 'triangle', 0.25);
@@ -386,7 +387,7 @@ export default function Toolbar() {
 
           <ToolbarButton 
             onClick={() => {
-              useStore.getState().setTopMessage("Flickering synapses... Gemini 3.5 Flash is analyzing your dabs or lines to paint request! ✨");
+              useStore.getState().setTopMessage("Analyzing and improving drawing... ✨");
               handleSend(aiPromptText);
               setAiPromptText('');
               playSound(850, 'triangle', 0.25);
